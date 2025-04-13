@@ -7,7 +7,7 @@ Startup script that initializes the server environment and starts the server.
 import os
 import sys
 import subprocess
-from setup_uploads import create_upload_directory
+from setup_uploads import create_upload_directory, verify_static_serving
 
 def main():
     """Main function to set up environment and start server"""
@@ -19,6 +19,10 @@ def main():
     if not success:
         print("Failed to create uploads directory, exiting.")
         sys.exit(1)
+    
+    # Verify static files serving
+    print("Verifying static files serving...")
+    verify_static_serving()
     
     # Start the server
     print("Starting server...")

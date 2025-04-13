@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -53,6 +54,7 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
   );
   const [fileName, setFileName] = useState<string>("");
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isImageLoaded, setIsImageLoaded] = useState<boolean>(!!initialData?.imageUrl);
   
   const defaultValues = initialData || {
     title: "",
@@ -69,6 +71,23 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
     resolver: zodResolver(artworkSchema),
     defaultValues,
   });
+
+  // Effect to check if the initial image URL is valid
+  useEffect(() => {
+    if (initialData?.imageUrl) {
+      const img = new Image();
+      img.onload = () => {
+        setIsImageLoaded(true);
+        console.log("Image loaded successfully:", initialData.imageUrl);
+      };
+      img.onerror = () => {
+        console.error("Failed to load image:", initialData.imageUrl);
+        setIsImageLoaded(false);
+        setPreviewImage("/placeholder.svg");
+      };
+      img.src = initialData.imageUrl;
+    }
+  }, [initialData?.imageUrl]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -117,6 +136,7 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
       const result = reader.result as string;
       setPreviewImage(result);
       setImageUrl(result); // Store the base64 image temporarily
+      setIsImageLoaded(true);
     };
     reader.readAsDataURL(file);
     
@@ -146,10 +166,6 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
       }
       
       console.log("Submitting artwork with image URL type:", typeof submissionImageUrl);
-      
-      if (typeof submissionImageUrl === 'string' && submissionImageUrl.length > 100) {
-        console.log("Image URL appears to be base64 data (length > 100)");
-      }
       
       const submissionData = {
         ...values,
@@ -240,7 +256,9 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
             
             {previewImage && (
               <p className="text-sm text-gray-500 mt-2">
-                Click above to change the image
+                {isImageLoaded ? 
+                  "Click above to change the image" : 
+                  "Current image may not be displaying correctly. Please upload a new one."}
               </p>
             )}
           </div>
