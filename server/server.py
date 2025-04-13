@@ -1,4 +1,3 @@
-
 import os
 import json
 import http.server
@@ -8,6 +7,8 @@ from http import HTTPStatus
 from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 from decimal import Decimal
+import base64
+import re
 
 # Import modules
 from auth import register_user, login_user, login_admin
@@ -16,6 +17,7 @@ from exhibition import get_all_exhibitions, get_exhibition, create_exhibition, u
 from contact import create_contact_message, get_messages, update_message, json_dumps
 from db_setup import initialize_database
 from middleware import auth_required, admin_required, extract_auth_token, verify_token
+from setup_uploads import create_upload_directory
 
 # Import module for file upload handling
 import tempfile
@@ -44,12 +46,73 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self._set_response()
     
+    def save_base64_image(self, base64_data, filename=None):
+        """Save a base64 image to the uploads directory"""
+        try:
+            # Extract the actual base64 data from the data URL
+            if ',' in base64_data:
+                base64_data = base64_data.split(',', 1)[1]
+            
+            # Generate filename if not provided
+            if not filename:
+                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                filename = f"{timestamp}_image.jpg"
+            
+            # Ensure the uploads directory exists
+            uploads_dir = os.path.join(os.path.dirname(__file__), "static", "uploads")
+            os.makedirs(uploads_dir, exist_ok=True)
+            
+            # Define the file path
+            file_path = os.path.join(uploads_dir, filename)
+            
+            # Decode and save the image
+            with open(file_path, "wb") as f:
+                f.write(base64.b64decode(base64_data))
+            
+            # Return the URL path that will be used to access the image
+            return f"/static/uploads/{filename}"
+        except Exception as e:
+            print(f"Error saving base64 image: {e}")
+            return None
+    
     def do_GET(self):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
         
+        # Serve static files
+        if path.startswith('/static/'):
+            try:
+                file_path = os.path.join(os.path.dirname(__file__), path[1:])
+                
+                if not os.path.exists(file_path):
+                    self._set_response(404)
+                    self.wfile.write(json_dumps({"error": "File not found"}).encode())
+                    return
+                
+                # Determine content type based on file extension
+                _, ext = os.path.splitext(file_path)
+                content_type = 'application/octet-stream'  # Default
+                
+                if ext.lower() in ['.jpg', '.jpeg']:
+                    content_type = 'image/jpeg'
+                elif ext.lower() == '.png':
+                    content_type = 'image/png'
+                elif ext.lower() == '.webp':
+                    content_type = 'image/webp'
+                
+                # Serve the file
+                with open(file_path, 'rb') as f:
+                    self._set_response(200, content_type)
+                    self.wfile.write(f.read())
+                return
+            except Exception as e:
+                print(f"Error serving static file: {e}")
+                self._set_response(500)
+                self.wfile.write(json_dumps({"error": "Internal server error"}).encode())
+                return
+        
         # Handle GET /artworks
-        if path == '/artworks':
+        elif path == '/artworks':
             response = get_all_artworks()
             self._set_response()
             self.wfile.write(json_dumps(response).encode())
@@ -124,6 +187,17 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             if "application/json" in content_type:
                 # Handle JSON data
                 post_data = json.loads(self.rfile.read(content_length).decode('utf-8'))
+                
+                # Process base64 image data if present
+                if 'imageUrl' in post_data and post_data['imageUrl'] and post_data['imageUrl'].startswith('data:'):
+                    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                    filename = f"{timestamp}_image.jpg"
+                    
+                    # Save the base64 image and update the URL
+                    new_url = self.save_base64_image(post_data['imageUrl'], filename)
+                    if new_url:
+                        post_data['imageUrl'] = new_url
+                
                 print(f"Parsed JSON data: {post_data}")
             elif "multipart/form-data" in content_type:
                 # For multipart form data (like file uploads), will be handled in specific endpoints
@@ -347,6 +421,16 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         post_data = {}
         if content_length > 0:
             post_data = json.loads(self.rfile.read(content_length).decode('utf-8'))
+            
+            # Process base64 image data if present
+            if 'imageUrl' in post_data and post_data['imageUrl'] and post_data['imageUrl'].startswith('data:'):
+                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                filename = f"{timestamp}_image.jpg"
+                
+                # Save the base64 image and update the URL
+                new_url = self.save_base64_image(post_data['imageUrl'], filename)
+                if new_url:
+                    post_data['imageUrl'] = new_url
         
         # Process based on path
         path = self.path
@@ -472,6 +556,10 @@ def main():
     # Initialize the database
     print("Initializing database...")
     initialize_database()
+    
+    # Create uploads directory
+    print("Setting up uploads directory...")
+    create_upload_directory()
     
     # Create an HTTP server
     print(f"Starting server on port {PORT}...")

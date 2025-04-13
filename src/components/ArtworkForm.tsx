@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -53,6 +52,7 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
     initialData?.imageUrl ? initialData.imageUrl : null
   );
   const [fileName, setFileName] = useState<string>("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   
   const defaultValues = initialData || {
     title: "",
@@ -76,6 +76,7 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
     if (!files || files.length === 0) return;
     
     const file = files[0];
+    setImageFile(file);
     
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
@@ -110,18 +111,16 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
     const generatedFileName = `${dateTime}_${file.name.replace(/\s+/g, '-')}`;
     setFileName(generatedFileName);
     
-    // Set the URL to be in the format the server expects
-    const serverImageUrl = `/static/uploads/${generatedFileName}`;
-    setImageUrl(serverImageUrl);
-    
-    // Create preview
+    // Create a FileReader to generate a preview
     const reader = new FileReader();
     reader.onload = () => {
-      setPreviewImage(reader.result as string);
+      const result = reader.result as string;
+      setPreviewImage(result);
+      setImageUrl(result); // Store the base64 image temporarily
     };
     reader.readAsDataURL(file);
     
-    console.log("Image URL set to:", serverImageUrl);
+    console.log("Image prepared for upload with filename:", generatedFileName);
   };
 
   const handleSubmit = async (values: ArtworkFormValues) => {
@@ -135,25 +134,29 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
         return;
       }
       
-      // For the submission data, preserve the existing image URL if it's from the server
-      // or use the newly generated one
+      // Use the stored image URL (base64 data or existing URL)
       let submissionImageUrl = imageUrl;
       
-      // If we have an initial image URL that seems valid and no new image was uploaded
-      if (initialData?.imageUrl && !fileName && 
+      // If we have an initial image URL that's already a server path and no new image was uploaded
+      if (initialData?.imageUrl && !imageFile && 
           (initialData.imageUrl.startsWith('/static/') || 
            initialData.imageUrl.startsWith('http'))) {
         submissionImageUrl = initialData.imageUrl;
+        console.log("Using existing server image path:", submissionImageUrl);
       }
       
-      // Use the stored image URL, not the preview data
+      console.log("Submitting artwork with image URL type:", typeof submissionImageUrl);
+      
+      if (typeof submissionImageUrl === 'string' && submissionImageUrl.length > 100) {
+        console.log("Image URL appears to be base64 data (length > 100)");
+      }
+      
       const submissionData = {
         ...values,
         imageUrl: submissionImageUrl,
         price: values.price
       } as ArtworkData;
       
-      console.log("Submitting artwork with image URL:", submissionImageUrl);
       onSubmit(submissionData);
     } catch (error) {
       toast({

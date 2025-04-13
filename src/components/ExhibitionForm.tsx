@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -47,7 +46,9 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
   onCancel,
 }) => {
   const { toast } = useToast();
+  const [imageUrl, setImageUrl] = useState<string>(initialData?.imageUrl || "");
   const [previewImage, setPreviewImage] = useState<string | null>(initialData?.imageUrl || null);
+  const [fileName, setFileName] = useState<string>("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   
   const defaultValues = initialData || {
@@ -73,6 +74,7 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
     if (!files || files.length === 0) return;
     
     const file = files[0];
+    setImageFile(file);
     
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
@@ -94,27 +96,45 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
       return;
     }
     
-    setImageFile(file);
+    // Generate current date-time string for unique filename
+    const now = new Date();
+    const dateTime = now.getFullYear() +
+                    String(now.getMonth() + 1).padStart(2, '0') +
+                    String(now.getDate()).padStart(2, '0') +
+                    String(now.getHours()).padStart(2, '0') +
+                    String(now.getMinutes()).padStart(2, '0') +
+                    String(now.getSeconds()).padStart(2, '0');
     
-    // Create preview
+    // Create a filename with datetime prefix
+    const generatedFileName = `${dateTime}_${file.name.replace(/\s+/g, '-')}`;
+    setFileName(generatedFileName);
+    
+    // Create a FileReader to generate a preview
     const reader = new FileReader();
     reader.onload = () => {
-      setPreviewImage(reader.result as string);
+      const result = reader.result as string;
+      setPreviewImage(result);
+      setImageUrl(result); // Store the base64 image temporarily
     };
     reader.readAsDataURL(file);
+    
+    console.log("Exhibition image prepared for upload with filename:", generatedFileName);
   };
 
   const handleSubmit = async (values: ExhibitionFormValues) => {
     try {
       // If no image was uploaded or changed, use the existing image
-      let imageUrl = initialData?.imageUrl || "";
+      let submissionImageUrl = imageUrl;
       
-      if (imageFile) {
-        // Use the local preview data URL as the imageUrl
-        imageUrl = previewImage || "";
+      // If we have an initial image URL that's already a server path and no new image was uploaded
+      if (initialData?.imageUrl && !imageFile && 
+          (initialData.imageUrl.startsWith('/static/') || 
+           initialData.imageUrl.startsWith('http'))) {
+        submissionImageUrl = initialData.imageUrl;
+        console.log("Using existing server image path:", submissionImageUrl);
       }
       
-      if (!imageUrl && !imageFile) {
+      if (!submissionImageUrl) {
         toast({
           variant: "destructive",
           title: "Image Required",
@@ -123,11 +143,13 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
         return;
       }
       
+      console.log("Submitting exhibition with image URL type:", typeof submissionImageUrl);
+      
       // Include the image URL in the submission data
       onSubmit({
         ...values,
-        imageUrl,
-        ticketPrice: values.ticketPrice // Price in KSh
+        imageUrl: submissionImageUrl,
+        ticketPrice: values.ticketPrice
       } as ExhibitionData);
     } catch (error) {
       toast({
@@ -193,6 +215,10 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
                   src={previewImage} 
                   alt="Exhibition preview" 
                   className="w-full h-auto rounded-lg"
+                  onError={(e) => {
+                    console.error("Image failed to load:", previewImage);
+                    (e.target as HTMLImageElement).src = '/placeholder.svg';
+                  }}
                 />
               </div>
             )}
