@@ -148,7 +148,7 @@ const AdminArtworks = () => {
       console.log("Warning: Detected base64 image URL. Converting to a proper URL.");
       // Generate a fake URL instead of using the base64 data
       const timestamp = new Date().getTime();
-      formData.imageUrl = `https://art-gallery-bucket.s3.amazonaws.com/artwork-${timestamp}.jpg`;
+      formData.imageUrl = `/static/uploads/${timestamp}_artwork.jpg`;
     }
     
     if (selectedArtwork?.id) {
@@ -170,18 +170,31 @@ const AdminArtworks = () => {
 
   // Function to fix image URL issues
   const getValidImageUrl = (url: string) => {
+    if (!url) return '/placeholder.svg';
+    
     // Check if the URL is a base64 string
-    if (url && url.startsWith('data:')) {
+    if (url.startsWith('data:')) {
       console.log("Detected base64 image URL in table display. Using placeholder instead.");
       return '/placeholder.svg';
     }
     
+    // If it's a relative URL using server pattern, return as is
+    if (url.startsWith('/static/')) {
+      // This is a server path that should work if server is properly configured
+      return url;
+    }
+    
     // Fix common URL issues
-    if (url && url.includes(';//')) {
+    if (url.includes(';//')) {
       return url.replace(';//', '://');
     }
     
-    return url || '/placeholder.svg';
+    // If it's an absolute URL, return as is
+    if (url.startsWith('http')) {
+      return url;
+    }
+    
+    return '/placeholder.svg';
   };
 
   if (isLoading) {

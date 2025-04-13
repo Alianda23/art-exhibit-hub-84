@@ -50,8 +50,9 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
   // Use state to track the image URL and preview image
   const [imageUrl, setImageUrl] = useState<string>(initialData?.imageUrl || "");
   const [previewImage, setPreviewImage] = useState<string | null>(
-    initialData?.imageUrl && initialData.imageUrl.startsWith("http") ? initialData.imageUrl : null
+    initialData?.imageUrl ? initialData.imageUrl : null
   );
+  const [fileName, setFileName] = useState<string>("");
   
   const defaultValues = initialData || {
     title: "",
@@ -96,10 +97,22 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
       return;
     }
     
-    // In a real application, you would upload the image to a server here and get a URL back
-    // For now, we'll create a fake URL using the file name
-    const fakeImageUrl = `https://art-gallery-bucket.s3.amazonaws.com/${file.name.replace(/\s+/g, '-')}`;
-    setImageUrl(fakeImageUrl);
+    // Generate current date-time string for unique filename
+    const now = new Date();
+    const dateTime = now.getFullYear() +
+                    String(now.getMonth() + 1).padStart(2, '0') +
+                    String(now.getDate()).padStart(2, '0') +
+                    String(now.getHours()).padStart(2, '0') +
+                    String(now.getMinutes()).padStart(2, '0') +
+                    String(now.getSeconds()).padStart(2, '0');
+    
+    // Create a filename with datetime prefix
+    const generatedFileName = `${dateTime}_${file.name.replace(/\s+/g, '-')}`;
+    setFileName(generatedFileName);
+    
+    // Set the URL to be in the format the server expects
+    const serverImageUrl = `/static/uploads/${generatedFileName}`;
+    setImageUrl(serverImageUrl);
     
     // Create preview
     const reader = new FileReader();
@@ -108,7 +121,7 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
     };
     reader.readAsDataURL(file);
     
-    console.log("Image URL set to:", fakeImageUrl);
+    console.log("Image URL set to:", serverImageUrl);
   };
 
   const handleSubmit = async (values: ArtworkFormValues) => {
@@ -122,14 +135,25 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
         return;
       }
       
+      // For the submission data, preserve the existing image URL if it's from the server
+      // or use the newly generated one
+      let submissionImageUrl = imageUrl;
+      
+      // If we have an initial image URL that seems valid and no new image was uploaded
+      if (initialData?.imageUrl && !fileName && 
+          (initialData.imageUrl.startsWith('/static/') || 
+           initialData.imageUrl.startsWith('http'))) {
+        submissionImageUrl = initialData.imageUrl;
+      }
+      
       // Use the stored image URL, not the preview data
       const submissionData = {
         ...values,
-        imageUrl: imageUrl, // Use the URL, not the base64 data
+        imageUrl: submissionImageUrl,
         price: values.price
       } as ArtworkData;
       
-      console.log("Submitting artwork with image URL:", imageUrl);
+      console.log("Submitting artwork with image URL:", submissionImageUrl);
       onSubmit(submissionData);
     } catch (error) {
       toast({
