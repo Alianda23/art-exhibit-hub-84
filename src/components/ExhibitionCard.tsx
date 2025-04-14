@@ -1,8 +1,9 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Exhibition } from '@/types';
 import { formatPrice, formatDateRange } from '@/utils/formatters';
+import { getValidImageUrl, handleImageError } from '@/utils/imageUtils';
 import { Button } from '@/components/ui/button';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { MapPin, Calendar, Ban } from 'lucide-react';
@@ -13,38 +14,7 @@ interface ExhibitionCardProps {
 
 const ExhibitionCard = ({ exhibition }: ExhibitionCardProps) => {
   const isSoldOut = exhibition.availableSlots === 0;
-  
-  // Function to ensure valid image URLs
-  const getValidImageUrl = (url: string): string => {
-    if (!url) return '/placeholder.svg';
-    
-    // Handle base64 images
-    if (url.startsWith('data:')) {
-      return url;
-    }
-    
-    // Handle server paths correctly
-    if (url.startsWith('/static/')) {
-      return url;
-    }
-    
-    // Fix protocol issues
-    if (url.includes(';//')) {
-      return url.replace(';//', '://');
-    }
-    
-    // If it's an absolute URL, return as is
-    if (url.startsWith('http')) {
-      return url;
-    }
-    
-    // Prepend / if it's a relative path and doesn't already start with /
-    if (!url.startsWith('/')) {
-      return `/${url}`;
-    }
-    
-    return url;
-  };
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   return (
     <div className="group rounded-lg overflow-hidden bg-white shadow-md hover:shadow-lg transition-all duration-300">
@@ -53,12 +23,18 @@ const ExhibitionCard = ({ exhibition }: ExhibitionCardProps) => {
           <img
             src={getValidImageUrl(exhibition.imageUrl)}
             alt={exhibition.title}
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => setImageLoaded(true)}
             onError={(e) => {
-              console.error(`Failed to load exhibition image: ${exhibition.imageUrl}`);
-              (e.target as HTMLImageElement).src = '/placeholder.svg';
+              handleImageError(e, exhibition.imageUrl);
+              setImageLoaded(true);
             }}
           />
+          {!imageLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+              <p className="text-gray-500 text-sm">Loading...</p>
+            </div>
+          )}
         </AspectRatio>
         {isSoldOut && (
           <div className="absolute top-0 right-0 bg-red-500 text-white px-3 py-1 rounded-bl-lg font-medium flex items-center gap-1">
