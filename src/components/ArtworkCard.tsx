@@ -12,14 +12,50 @@ interface ArtworkCardProps {
 }
 
 const ArtworkCard = ({ artwork }: ArtworkCardProps) => {
+  // Function to ensure valid image URLs
+  const getValidImageUrl = (url: string): string => {
+    if (!url) return '/placeholder.svg';
+    
+    // Handle base64 images
+    if (url.startsWith('data:')) {
+      return url;
+    }
+    
+    // Handle server paths correctly
+    if (url.startsWith('/static/')) {
+      return url;
+    }
+    
+    // Fix protocol issues
+    if (url.includes(';//')) {
+      return url.replace(';//', '://');
+    }
+    
+    // If it's an absolute URL, return as is
+    if (url.startsWith('http')) {
+      return url;
+    }
+    
+    // Prepend / if it's a relative path and doesn't already start with /
+    if (!url.startsWith('/')) {
+      return `/${url}`;
+    }
+    
+    return url;
+  };
+
   return (
     <div className="group rounded-lg overflow-hidden bg-white shadow-md hover:shadow-lg transition-all duration-300">
       <div className="image-container relative">
         <AspectRatio ratio={3/4}>
           <img
-            src={artwork.imageUrl}
+            src={getValidImageUrl(artwork.imageUrl)}
             alt={artwork.title}
             className="w-full h-full object-cover"
+            onError={(e) => {
+              console.error(`Failed to load artwork image: ${artwork.imageUrl}`);
+              (e.target as HTMLImageElement).src = '/placeholder.svg';
+            }}
           />
         </AspectRatio>
         {artwork.status === 'sold' && (
