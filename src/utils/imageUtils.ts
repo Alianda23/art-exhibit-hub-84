@@ -3,6 +3,9 @@
  * Utility functions for handling image URLs
  */
 
+// Get the server base URL from environment or use default
+const SERVER_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 /**
  * Ensures a valid image URL is returned, handling various edge cases
  * 
@@ -18,15 +21,10 @@ export const getValidImageUrl = (url: string, fallback: string = '/placeholder.s
   if (url.startsWith('data:')) {
     return url;
   }
-  
-  // Handle server paths correctly (return as-is)
-  if (url.startsWith('/static/')) {
-    return url;
-  }
-  
+
   // Fix protocol issues (like https:;//)
-  if (url.includes(';//')) {
-    return url.replace(';//', '://');
+  if (url.includes('://;')) {
+    url = url.replace('://;', '://');
   }
   
   // If it's an absolute URL, return as is
@@ -34,13 +32,19 @@ export const getValidImageUrl = (url: string, fallback: string = '/placeholder.s
     return url;
   }
   
+  // Critical change: Handle server paths by prepending server URL
+  if (url.startsWith('/static/')) {
+    // Remove the leading slash so it correctly joins with the server URL
+    return `${SERVER_BASE_URL}${url}`;
+  }
+  
   // Prepend / if it's a relative path and doesn't already start with /
   if (!url.startsWith('/')) {
     return `/${url}`;
   }
   
-  // Return original URL if none of the conditions are met
-  return url;
+  // For other paths starting with /, prepend server URL
+  return `${SERVER_BASE_URL}${url}`;
 };
 
 /**
@@ -57,4 +61,9 @@ export const handleImageError = (
 ): void => {
   console.error(`Failed to load image: ${imageUrl}`);
   (event.target as HTMLImageElement).src = fallback;
+  
+  // Additional debugging
+  console.log(`Image URL that failed: ${imageUrl}`);
+  console.log(`Using fallback: ${fallback}`);
+  console.log(`Server base URL: ${SERVER_BASE_URL}`);
 };

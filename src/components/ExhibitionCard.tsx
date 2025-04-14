@@ -7,6 +7,7 @@ import { getValidImageUrl, handleImageError } from '@/utils/imageUtils';
 import { Button } from '@/components/ui/button';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { MapPin, Calendar, Ban } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface ExhibitionCardProps {
   exhibition: Exhibition;
@@ -15,26 +16,35 @@ interface ExhibitionCardProps {
 const ExhibitionCard = ({ exhibition }: ExhibitionCardProps) => {
   const isSoldOut = exhibition.availableSlots === 0;
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  
+  // Get the properly formatted image URL
+  const imageUrl = getValidImageUrl(exhibition.imageUrl);
 
   return (
     <div className="group rounded-lg overflow-hidden bg-white shadow-md hover:shadow-lg transition-all duration-300">
       <div className="image-container relative">
         <AspectRatio ratio={16/9}>
-          <img
-            src={getValidImageUrl(exhibition.imageUrl)}
-            alt={exhibition.title}
-            className={`w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-            onLoad={() => setImageLoaded(true)}
-            onError={(e) => {
-              handleImageError(e, exhibition.imageUrl);
-              setImageLoaded(true);
-            }}
-          />
-          {!imageLoaded && (
+          {!imageLoaded && !imageError && (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-              <p className="text-gray-500 text-sm">Loading...</p>
+              <Skeleton className="w-full h-full" />
             </div>
           )}
+          <img
+            src={imageUrl}
+            alt={exhibition.title}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => {
+              console.log(`Exhibition image loaded successfully: ${imageUrl}`);
+              setImageLoaded(true);
+            }}
+            onError={(e) => {
+              console.log(`Exhibition image error for: ${imageUrl}`);
+              setImageError(true);
+              setImageLoaded(true);
+              handleImageError(e, exhibition.imageUrl);
+            }}
+          />
         </AspectRatio>
         {isSoldOut && (
           <div className="absolute top-0 right-0 bg-red-500 text-white px-3 py-1 rounded-bl-lg font-medium flex items-center gap-1">
