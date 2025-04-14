@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -72,13 +71,9 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     
-    if (!files || files.length === 0) {
-      console.log("No files selected in image upload");
-      return;
-    }
+    if (!files || files.length === 0) return;
     
     const file = files[0];
-    console.log(`File selected: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
     setImageFile(file);
     
     // Validate file size
@@ -88,7 +83,6 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
         title: "Error",
         description: "Image size should be less than 5MB",
       });
-      console.log(`File size exceeds maximum: ${file.size} > ${MAX_FILE_SIZE}`);
       return;
     }
     
@@ -99,7 +93,6 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
         title: "Error",
         description: "Image format should be JPG, PNG or WebP",
       });
-      console.log(`Invalid file type: ${file.type}`);
       return;
     }
     
@@ -115,23 +108,13 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
     // Create a filename with datetime prefix
     const generatedFileName = `${dateTime}_${file.name.replace(/\s+/g, '-')}`;
     setFileName(generatedFileName);
-    console.log(`Generated filename: ${generatedFileName}`);
     
     // Create a FileReader to generate a preview
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      console.log(`Base64 image generated, length: ${result.length}`);
       setPreviewImage(result);
       setImageUrl(result); // Store the base64 image temporarily
-    };
-    reader.onerror = (error) => {
-      console.error("FileReader error:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to read the image file",
-      });
     };
     reader.readAsDataURL(file);
     
@@ -140,8 +123,6 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
 
   const handleSubmit = async (values: ExhibitionFormValues) => {
     try {
-      console.log("Submitting exhibition form with values:", values);
-      
       // If no image was uploaded or changed, use the existing image
       let submissionImageUrl = imageUrl;
       
@@ -159,18 +140,10 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
           title: "Image Required",
           description: "Please upload an image for the exhibition",
         });
-        console.log("Form submission blocked: No image provided");
         return;
       }
       
       console.log("Submitting exhibition with image URL type:", typeof submissionImageUrl);
-      console.log("Image URL preview:", submissionImageUrl.substring(0, 50) + "...");
-      
-      if (submissionImageUrl.startsWith('data:')) {
-        console.log("Submitting base64 image, length:", submissionImageUrl.length);
-      } else {
-        console.log("Submitting image URL:", submissionImageUrl);
-      }
       
       // Include the image URL in the submission data
       onSubmit({
@@ -255,13 +228,7 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
               <span className="mt-2 text-base text-gray-500">
                 {previewImage ? "Change image" : "Upload image"}
               </span>
-              <input 
-                type="file" 
-                className="hidden" 
-                onChange={handleImageChange} 
-                accept="image/*"
-                key={fileName || "upload"} // Add key to force re-render when file is selected or cleared
-              />
+              <input type="file" className="hidden" onChange={handleImageChange} accept="image/*" />
             </label>
             
             {previewImage && (

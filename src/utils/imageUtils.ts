@@ -19,7 +19,6 @@ export const getValidImageUrl = (url: string, fallback: string = '/placeholder.s
   
   // Handle base64 images (return as-is)
   if (url.startsWith('data:')) {
-    console.log('Returning base64 image as-is');
     return url;
   }
 
@@ -30,15 +29,13 @@ export const getValidImageUrl = (url: string, fallback: string = '/placeholder.s
   
   // If it's an absolute URL, return as is
   if (url.startsWith('http')) {
-    console.log(`Returning absolute URL: ${url}`);
     return url;
   }
   
-  // Handle server paths by prepending server URL
+  // Critical change: Handle server paths by prepending server URL
   if (url.startsWith('/static/')) {
-    const fullUrl = `${SERVER_BASE_URL}${url}`;
-    console.log(`Constructed server URL: ${fullUrl} from path: ${url}`);
-    return fullUrl;
+    // Remove the leading slash so it correctly joins with the server URL
+    return `${SERVER_BASE_URL}${url}`;
   }
   
   // Prepend / if it's a relative path and doesn't already start with /
@@ -47,9 +44,7 @@ export const getValidImageUrl = (url: string, fallback: string = '/placeholder.s
   }
   
   // For other paths starting with /, prepend server URL
-  const fullUrl = `${SERVER_BASE_URL}${url}`;
-  console.log(`Constructed server URL for path: ${fullUrl}`);
-  return fullUrl;
+  return `${SERVER_BASE_URL}${url}`;
 };
 
 /**

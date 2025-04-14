@@ -47,9 +47,6 @@ app.teardown_appcontext(close_db)
 # Ensure upload directory exists
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-print(f"Upload folder path: {UPLOAD_FOLDER}")
-print(f"Upload folder exists: {os.path.exists(UPLOAD_FOLDER)}")
-print(f"Upload folder permissions: {oct(os.stat(UPLOAD_FOLDER).st_mode)[-3:]}")
 
 # Register middleware
 app.after_request(set_cors_headers)
@@ -61,64 +58,37 @@ def index():
 # Serve static files from the static directory
 @app.route('/static/<path:path>')
 def serve_static(path):
-    print(f"Serving static file: {path}")
     return send_from_directory('static', path)
 
 # Process base64 image and save to file
 def process_image_upload(image_data):
-    if not image_data or not isinstance(image_data, str):
-        print(f"Invalid image data: {type(image_data)}")
-        return None
-        
-    if not image_data.startswith('data:'):
-        print(f"Image data doesn't start with 'data:': {image_data[:50]}...")
+    if not image_data or not image_data.startswith('data:'):
         return None
         
     try:
-        print("Processing image upload...")
         # Extract content after the comma
-        if ',' not in image_data:
-            print("No comma in base64 data")
-            return None
-            
         image_data = image_data.split(",")[1]
         
         # Get file extension from mimetype
-        content_type = image_data.split(",")[0] if ',' in image_data else ""
         file_extension = "jpg"  # Default to jpg
-        
-        if "image/png" in content_type:
+        if "image/png" in image_data:
             file_extension = "png"
-        elif "image/jpeg" in content_type or "image/jpg" in content_type:
+        elif "image/jpeg" in image_data or "image/jpg" in image_data:
             file_extension = "jpg"
-        elif "image/webp" in content_type:
+        elif "image/webp" in image_data:
             file_extension = "webp"
-        
-        print(f"Image format detected: {file_extension}")
         
         # Generate filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         filename = f"{timestamp}_image.{file_extension}"
         
         # Decode the base64 string
-        try:
-            image_binary = base64.b64decode(image_data)
-            print(f"Base64 decoded successfully, size: {len(image_binary)} bytes")
-        except Exception as e:
-            print(f"Base64 decoding error: {e}")
-            return None
+        image_binary = base64.b64decode(image_data)
         
         # Save to file
         filepath = os.path.join(UPLOAD_FOLDER, filename)
-        print(f"Saving image to: {filepath}")
-        
         with open(filepath, "wb") as f:
             f.write(image_binary)
-            
-        print(f"Image saved successfully: {filename}")
-        
-        # Print directory contents for debugging
-        print(f"Files in upload directory: {os.listdir(UPLOAD_FOLDER)}")
             
         # Return the relative URL
         return f"/static/uploads/{filename}"
@@ -225,17 +195,13 @@ def artwork(artwork_id):
 def add_artwork():
     try:
         data = request.get_json()
-        print(f"Received artwork data: {data.keys()}")
         
         # Process image if it's a base64 string
         if data.get('imageUrl') and data['imageUrl'].startswith('data:'):
-            print(f"Processing base64 image, length: {len(data['imageUrl'])}")
             image_url = process_image_upload(data['imageUrl'])
             if image_url:
                 data['imageUrl'] = image_url
-                print(f"Image processed successfully: {image_url}")
             else:
-                print("Image processing failed")
                 return jsonify({
                     "status": "error", 
                     "message": "Failed to process image"
@@ -315,20 +281,16 @@ def exhibition(exhibition_id):
 def add_exhibition():
     try:
         data = request.get_json()
-        print(f"Received exhibition data: {data.keys()}")
         
         # Process image if it's a base64 string
-        if data.get('imageUrl') and isinstance(data['imageUrl'], str) and data['imageUrl'].startswith('data:'):
-            print(f"Processing base64 image for exhibition, length: {len(data['imageUrl'])}")
+        if data.get('imageUrl') and data['imageUrl'].startswith('data:'):
             image_url = process_image_upload(data['imageUrl'])
             if image_url:
                 data['imageUrl'] = image_url
-                print(f"Exhibition image processed successfully: {image_url}")
             else:
-                print("Exhibition image processing failed")
                 return jsonify({
                     "status": "error", 
-                    "message": "Failed to process exhibition image"
+                    "message": "Failed to process image"
                 }), 400
         
         exhibition_id = create_exhibition(data)
@@ -346,20 +308,16 @@ def add_exhibition():
 def update_exhibition_route(exhibition_id):
     try:
         data = request.get_json()
-        print(f"Updating exhibition {exhibition_id} with data: {data.keys()}")
         
         # Process image if it's a base64 string
-        if data.get('imageUrl') and isinstance(data['imageUrl'], str) and data['imageUrl'].startswith('data:'):
-            print(f"Processing base64 image for exhibition update, length: {len(data['imageUrl'])}")
+        if data.get('imageUrl') and data['imageUrl'].startswith('data:'):
             image_url = process_image_upload(data['imageUrl'])
             if image_url:
                 data['imageUrl'] = image_url
-                print(f"Exhibition image processed successfully for update: {image_url}")
             else:
-                print("Exhibition image processing failed for update")
                 return jsonify({
                     "status": "error", 
-                    "message": "Failed to process exhibition image"
+                    "message": "Failed to process image"
                 }), 400
         
         success = update_exhibition(exhibition_id, data)
@@ -428,26 +386,6 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"Error initializing database: {e}")
         sys.exit(1)
-    
-    # Print directory structure for debugging
-    print("\nServer directory structure:")
-    server_dir = os.path.dirname(__file__)
-    print(f"Server directory: {server_dir}")
-    
-    static_dir = os.path.join(server_dir, "static")
-    if os.path.exists(static_dir):
-        print(f"Static directory: {static_dir} (exists)")
-        for item in os.listdir(static_dir):
-            item_path = os.path.join(static_dir, item)
-            if os.path.isdir(item_path):
-                print(f"  - {item}/ (directory)")
-                if os.path.exists(item_path) and os.path.isdir(item_path):
-                    for subitem in os.listdir(item_path):
-                        print(f"    - {subitem}")
-            else:
-                print(f"  - {item}")
-    else:
-        print(f"Static directory: {static_dir} (does not exist)")
     
     # Start the Flask server
     app.run(debug=True, host='0.0.0.0')

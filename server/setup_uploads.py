@@ -2,46 +2,6 @@
 import os
 import sys
 import shutil
-import subprocess
-
-def check_dependencies():
-    """Check if required dependencies are installed and compatible"""
-    try:
-        print("Checking Flask and Werkzeug compatibility...")
-        
-        # Try to import Flask to see if it works
-        try:
-            import flask
-            print(f"Flask version: {flask.__version__}")
-        except ImportError:
-            print("Flask is not installed. Installing Flask...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "flask"])
-        
-        # Check Werkzeug version
-        try:
-            import werkzeug
-            print(f"Werkzeug version: {werkzeug.__version__}")
-            
-            # Check if url_quote exists in werkzeug.urls
-            try:
-                from werkzeug.urls import url_quote
-                print("url_quote found in werkzeug.urls")
-            except ImportError:
-                print("url_quote not found in werkzeug.urls.")
-                print("Installing compatible versions of Flask and Werkzeug...")
-                
-                # Install specific versions known to be compatible
-                subprocess.check_call([sys.executable, "-m", "pip", "install", "flask==2.0.1", "werkzeug==2.0.1"])
-                print("Compatible versions installed. Please restart the server.")
-        
-        except ImportError:
-            print("Werkzeug is not installed. Installing Werkzeug...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "werkzeug==2.0.1"])
-        
-        return True
-    except Exception as e:
-        print(f"Error checking dependencies: {e}")
-        return False
 
 def create_upload_directory():
     """Create the static/uploads directory for storing uploaded images"""
@@ -51,47 +11,19 @@ def create_upload_directory():
     
     # Create the directories if they don't exist
     try:
-        # Create static directory if it doesn't exist
-        if not os.path.exists(static_dir):
-            os.makedirs(static_dir)
-            print(f"Created static directory at: {static_dir}")
-        
-        # Create uploads directory if it doesn't exist
-        if not os.path.exists(uploads_dir):
-            os.makedirs(uploads_dir)
-            print(f"Created uploads directory at: {uploads_dir}")
-        else:
-            print(f"Uploads directory already exists at: {uploads_dir}")
+        os.makedirs(uploads_dir, exist_ok=True)
+        print(f"Successfully created uploads directory at: {uploads_dir}")
         
         # Add a .gitkeep file to ensure the directory is tracked by git
-        gitkeep_path = os.path.join(uploads_dir, ".gitkeep")
-        if not os.path.exists(gitkeep_path):
-            with open(gitkeep_path, "w") as f:
-                f.write("# This file ensures the uploads directory is tracked by git\n")
+        with open(os.path.join(uploads_dir, ".gitkeep"), "w") as f:
+            f.write("# This file ensures the uploads directory is tracked by git\n")
         
-        # Add proper permissions to the directories
+        # Add proper permissions to the directory
         try:
-            os.chmod(static_dir, 0o755)  # rwxr-xr-x permissions
-            print(f"Set permissions 0o755 on static directory: {static_dir}")
-            
-            os.chmod(uploads_dir, 0o777)  # rwxrwxrwx permissions for maximum compatibility
-            print(f"Set permissions 0o777 on uploads directory: {uploads_dir}")
-            
-            print(f"Static dir permissions: {oct(os.stat(static_dir).st_mode)[-3:]}")
-            print(f"Uploads dir permissions: {oct(os.stat(uploads_dir).st_mode)[-3:]}")
+            os.chmod(uploads_dir, 0o755)  # rwxr-xr-x permissions
+            print("Set proper permissions on uploads directory")
         except Exception as e:
             print(f"Warning: Could not set permissions on directory: {e}")
-            
-        # Check if directories are writable
-        if os.access(uploads_dir, os.W_OK):
-            print(f"Uploads directory is writable: {uploads_dir}")
-        else:
-            print(f"Warning: Uploads directory is NOT writable: {uploads_dir}")
-            
-        # List content of the directories
-        print(f"Static directory contents: {os.listdir(static_dir)}")
-        if os.path.exists(uploads_dir):
-            print(f"Uploads directory contents: {os.listdir(uploads_dir)}")
             
         return True
     except Exception as e:
@@ -140,24 +72,6 @@ def verify_static_serving():
             except Exception as e:
                 print(f"Warning: Could not create placeholder JPG: {e}")
         
-        # Create a test file for upload testing
-        test_upload_path = os.path.join(static_dir, "uploads", "test_upload.txt")
-        try:
-            uploads_dir = os.path.join(static_dir, "uploads")
-            os.makedirs(uploads_dir, exist_ok=True)
-            with open(test_upload_path, "w") as f:
-                f.write("Test upload file\n")
-            print(f"Created test upload file at: {test_upload_path}")
-            
-            # Test if file is actually created
-            if os.path.exists(test_upload_path):
-                print(f"Test upload file exists: {test_upload_path}")
-                print(f"File size: {os.path.getsize(test_upload_path)} bytes")
-            else:
-                print(f"Test upload file does NOT exist: {test_upload_path}")
-        except Exception as e:
-            print(f"Error creating test upload file: {e}")
-        
         return True
     except Exception as e:
         print(f"Error verifying static serving: {e}")
@@ -169,7 +83,6 @@ def verify_static_serving():
 
 if __name__ == "__main__":
     # Run the function when script is executed directly
-    check_dependencies()
     success = create_upload_directory()
     if success:
         verify_static_serving()
