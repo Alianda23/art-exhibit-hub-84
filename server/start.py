@@ -7,11 +7,15 @@ Startup script that initializes the server environment and starts the server.
 import os
 import sys
 import subprocess
-from setup_uploads import create_upload_directory, verify_static_serving
+from setup_uploads import create_upload_directory, verify_static_serving, check_dependencies
 
 def main():
     """Main function to set up environment and start server"""
     print("Setting up environment...")
+    
+    # Check dependencies first
+    print("Checking dependencies...")
+    check_dependencies()
     
     # Create uploads directory
     print("Creating uploads directory...")

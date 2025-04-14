@@ -2,6 +2,46 @@
 import os
 import sys
 import shutil
+import subprocess
+
+def check_dependencies():
+    """Check if required dependencies are installed and compatible"""
+    try:
+        print("Checking Flask and Werkzeug compatibility...")
+        
+        # Try to import Flask to see if it works
+        try:
+            import flask
+            print(f"Flask version: {flask.__version__}")
+        except ImportError:
+            print("Flask is not installed. Installing Flask...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "flask"])
+        
+        # Check Werkzeug version
+        try:
+            import werkzeug
+            print(f"Werkzeug version: {werkzeug.__version__}")
+            
+            # Check if url_quote exists in werkzeug.urls
+            try:
+                from werkzeug.urls import url_quote
+                print("url_quote found in werkzeug.urls")
+            except ImportError:
+                print("url_quote not found in werkzeug.urls.")
+                print("Installing compatible versions of Flask and Werkzeug...")
+                
+                # Install specific versions known to be compatible
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "flask==2.0.1", "werkzeug==2.0.1"])
+                print("Compatible versions installed. Please restart the server.")
+        
+        except ImportError:
+            print("Werkzeug is not installed. Installing Werkzeug...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "werkzeug==2.0.1"])
+        
+        return True
+    except Exception as e:
+        print(f"Error checking dependencies: {e}")
+        return False
 
 def create_upload_directory():
     """Create the static/uploads directory for storing uploaded images"""
@@ -129,6 +169,7 @@ def verify_static_serving():
 
 if __name__ == "__main__":
     # Run the function when script is executed directly
+    check_dependencies()
     success = create_upload_directory()
     if success:
         verify_static_serving()
