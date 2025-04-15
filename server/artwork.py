@@ -72,6 +72,11 @@ def get_artwork(artwork_id):
             cursor.close()
             connection.close()
 
+# Renamed from get_artwork_by_id to match actual implementation
+def get_artwork_by_id(artwork_id):
+    """Get a specific artwork by ID - alias for backward compatibility"""
+    return get_artwork(artwork_id)
+
 def create_artwork(auth_header, artwork_data):
     """Create a new artwork (admin only)"""
     print(f"\n--- Create Artwork Request ---")

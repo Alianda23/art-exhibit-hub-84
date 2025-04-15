@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 """
 Flask server for the gallery web application.
@@ -21,18 +20,18 @@ import sqlite3
 # Update imports to use correct database functions
 from database import get_db_connection, save_contact_message, get_all_contact_messages
 from auth import (
-    generate_token, decode_token, login_required, 
+    generate_token, verify_token, login_required, 
     admin_required, get_user_id_from_token
 )
 from artwork import (
-    get_all_artworks, get_artwork_by_id, 
+    get_all_artworks, get_artwork, 
     create_artwork, update_artwork, delete_artwork
 )
 from exhibition import (
-    get_all_exhibitions, get_exhibition_by_id, 
+    get_all_exhibitions, get_exhibition, 
     create_exhibition, update_exhibition, delete_exhibition
 )
-from contact import create_contact_message, get_all_messages
+from contact import create_contact_message, get_messages
 from mpesa import initiate_stk_push
 from middleware import set_cors_headers
 
@@ -129,7 +128,38 @@ def process_image_upload(image_data):
         traceback.print_exc()
         return None
 
-# ... keep existing code (Authentication routes)
+# Authentication routes
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    result = auth.register_user(data.get('name'), data.get('email'), data.get('password'), data.get('phone'))
+    return jsonify(result)
+
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    result = auth.login_user(data.get('email'), data.get('password'))
+    return jsonify(result)
+
+@app.route('/admin-login', methods=['POST'])
+def admin_login():
+    data = request.get_json()
+    result = auth.login_admin(data.get('email'), data.get('password'))
+    return jsonify(result)
+
+# Middleware to verify token
+def verify_token_middleware(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization')
+        if not token:
+            return jsonify({'message': 'Token is missing'}), 403
+        try:
+            data = auth.decode_token(token)
+        except:
+            return jsonify({'message': 'Token is invalid'}), 403
+        return f(*args, **kwargs)
+    return decorated
 
 # Artwork routes
 @app.route('/api/artworks', methods=['GET'])
@@ -144,7 +174,7 @@ def artworks():
 @app.route('/api/artworks/<int:artwork_id>', methods=['GET'])
 def artwork(artwork_id):
     try:
-        artwork = get_artwork_by_id(artwork_id)
+        artwork = get_artwork(artwork_id)
         if not artwork:
             return jsonify({"status": "error", "message": "Artwork not found"}), 404
         return jsonify(artwork)
@@ -184,7 +214,47 @@ def add_artwork():
         traceback.print_exc()
         return jsonify({"status": "error", "message": f"Failed to create artwork: {str(e)}"}), 500
 
-# ... keep existing code (Update artwork route, Delete artwork route)
+@app.route('/api/artworks/<int:artwork_id>', methods=['PUT'])
+@admin_required
+def update_artwork_route(artwork_id):
+    try:
+        data = request.get_json()
+        
+        # Process image if it's a base64 string
+        if data.get('imageUrl') and data['imageUrl'].startswith('data:'):
+            print("Processing base64 image from artwork update")
+            image_url = process_image_upload(data['imageUrl'])
+            if image_url:
+                print(f"Image successfully processed and saved: {image_url}")
+                data['imageUrl'] = image_url
+            else:
+                print("Failed to process image, responding with error")
+                return jsonify({
+                    "status": "error", 
+                    "message": "Failed to process image"
+                }), 400
+        
+        success = update_artwork(artwork_id, data)
+        if not success:
+            return jsonify({"status": "error", "message": "Artwork not found"}), 404
+        return jsonify({"status": "success", "message": "Artwork updated successfully"})
+    except Exception as e:
+        print(f"Error updating artwork: {e}")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": f"Failed to update artwork: {str(e)}"}), 500
+
+@app.route('/api/artworks/<int:artwork_id>', methods=['DELETE'])
+@admin_required
+def delete_artwork_route(artwork_id):
+    try:
+        success = delete_artwork(artwork_id)
+        if not success:
+            return jsonify({"status": "error", "message": "Artwork not found"}), 404
+        return jsonify({"status": "success", "message": "Artwork deleted successfully"})
+    except Exception as e:
+        print(f"Error deleting artwork: {e}")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": f"Failed to delete artwork: {str(e)}"}), 500
 
 # Exhibition routes
 @app.route('/api/exhibitions', methods=['GET'])
@@ -199,7 +269,7 @@ def exhibitions():
 @app.route('/api/exhibitions/<int:exhibition_id>', methods=['GET'])
 def exhibition(exhibition_id):
     try:
-        exhibition = get_exhibition_by_id(exhibition_id)
+        exhibition = get_exhibition(exhibition_id)
         if not exhibition:
             return jsonify({"status": "error", "message": "Exhibition not found"}), 404
         return jsonify(exhibition)
@@ -267,7 +337,58 @@ def update_exhibition_route(exhibition_id):
         traceback.print_exc()
         return jsonify({"status": "error", "message": f"Failed to update exhibition: {str(e)}"}), 500
 
-# ... keep existing code (Delete exhibition route, Contact routes, Payment routes)
+@app.route('/api/exhibitions/<int:exhibition_id>', methods=['DELETE'])
+@admin_required
+def delete_exhibition_route(exhibition_id):
+    try:
+        success = delete_exhibition(exhibition_id)
+        if not success:
+            return jsonify({"status": "error", "message": "Exhibition not found"}), 404
+        return jsonify({"status": "success", "message": "Exhibition deleted successfully"})
+    except Exception as e:
+        print(f"Error deleting exhibition: {e}")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": f"Failed to delete exhibition: {str(e)}"}), 500
+
+# Contact routes
+@app.route('/contact', methods=['POST'])
+def contact():
+    data = request.get_json()
+    result = create_contact_message(data)
+    return jsonify(result)
+
+@app.route('/messages', methods=['GET'])
+@admin_required
+def messages():
+    auth_header = request.headers.get('Authorization')
+    result = get_messages(auth_header)
+    return jsonify(result)
+
+@app.route('/messages/<int:message_id>', methods=['PUT'])
+@admin_required
+def update_message_route(message_id):
+    auth_header = request.headers.get('Authorization')
+    data = request.get_json()
+    result = update_message(auth_header, message_id, data)
+    return jsonify(result)
+
+# Payment routes
+@app.route('/mpesa/stk-push', methods=['POST'])
+def stk_push():
+    data = request.get_json()
+    phone_number = data.get('phoneNumber')
+    amount = data.get('amount')
+    order_type = data.get('orderType')
+    order_id = data.get('orderId')
+    user_id = data.get('userId')
+    account_reference = data.get('accountReference')
+    
+    try:
+        response = initiate_stk_push(phone_number, amount, order_type, order_id, user_id, account_reference)
+        return jsonify(response)
+    except Exception as e:
+        print(f"M-Pesa Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # Main entry point
 if __name__ == '__main__':

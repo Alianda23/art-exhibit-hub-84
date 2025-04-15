@@ -102,6 +102,11 @@ def get_exhibition(exhibition_id):
             cursor.close()
             connection.close()
 
+# Renamed from get_exhibition_by_id to match actual implementation
+def get_exhibition_by_id(exhibition_id):
+    """Get a specific exhibition by ID - alias for backward compatibility"""
+    return get_exhibition(exhibition_id)
+
 def create_exhibition(auth_header, exhibition_data):
     """Create a new exhibition (admin only)"""
     print(f"\n--- Create Exhibition Request ---")

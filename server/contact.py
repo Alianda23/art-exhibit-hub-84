@@ -1,4 +1,3 @@
-
 from database import save_contact_message, get_all_contact_messages, update_message_status
 import json
 import jwt
@@ -75,6 +74,11 @@ def get_messages(auth_header):
     if isinstance(result, dict) and 'messages' in result:
         return json.loads(json_dumps(result))
     return result
+
+# Renamed from get_all_messages to match actual implementation
+def get_all_messages(auth_header):
+    """Get all contact messages (admin only) - alias for backward compatibility"""
+    return get_messages(auth_header)
 
 def update_message(auth_header, message_id, data):
     """Update the status of a message (admin only)"""
