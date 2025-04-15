@@ -291,7 +291,7 @@ export const authFetch = async (url: string, options: RequestInit = {}): Promise
 // Create a new artwork (admin only)
 export const createArtwork = async (artworkData: ArtworkData) => {
   console.log('Creating artwork with data:', artworkData);
-  return await authFetch('/artworks', {
+  return await authFetch('/api/artworks', {
     method: 'POST',
     body: JSON.stringify(artworkData),
   });
@@ -300,7 +300,7 @@ export const createArtwork = async (artworkData: ArtworkData) => {
 // Update existing artwork (admin only)
 export const updateArtwork = async (id: string, artworkData: ArtworkData) => {
   console.log(`Updating artwork ${id} with data:`, artworkData);
-  return await authFetch(`/artworks/${id}`, {
+  return await authFetch(`/api/artworks/${id}`, {
     method: 'PUT',
     body: JSON.stringify(artworkData),
   });
@@ -309,7 +309,7 @@ export const updateArtwork = async (id: string, artworkData: ArtworkData) => {
 // Delete artwork (admin only)
 export const deleteArtwork = async (id: string) => {
   console.log(`Deleting artwork ${id}`);
-  return await authFetch(`/artworks/${id}`, {
+  return await authFetch(`/api/artworks/${id}`, {
     method: 'DELETE',
   });
 };
@@ -317,7 +317,7 @@ export const deleteArtwork = async (id: string) => {
 // Create a new exhibition (admin only)
 export const createExhibition = async (exhibitionData: ExhibitionData) => {
   console.log('Creating exhibition with data:', exhibitionData);
-  return await authFetch('/exhibitions', {
+  return await authFetch('/api/exhibitions', {
     method: 'POST',
     body: JSON.stringify(exhibitionData),
   });
@@ -326,7 +326,7 @@ export const createExhibition = async (exhibitionData: ExhibitionData) => {
 // Update existing exhibition (admin only)
 export const updateExhibition = async (id: string, exhibitionData: ExhibitionData) => {
   console.log(`Updating exhibition ${id} with data:`, exhibitionData);
-  return await authFetch(`/exhibitions/${id}`, {
+  return await authFetch(`/api/exhibitions/${id}`, {
     method: 'PUT',
     body: JSON.stringify(exhibitionData),
   });
@@ -335,7 +335,7 @@ export const updateExhibition = async (id: string, exhibitionData: ExhibitionDat
 // Delete exhibition (admin only)
 export const deleteExhibition = async (id: string) => {
   console.log(`Deleting exhibition ${id}`);
-  return await authFetch(`/exhibitions/${id}`, {
+  return await authFetch(`/api/exhibitions/${id}`, {
     method: 'DELETE',
   });
 };
