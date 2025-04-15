@@ -343,7 +343,7 @@ export const deleteExhibition = async (id: string) => {
 // Get all artworks
 export const getAllArtworks = async () => {
   try {
-    const response = await fetch(`${API_URL}/artworks`);
+    const response = await fetch(`${API_URL}/api/artworks`);
     if (!response.ok) {
       throw new Error('Failed to fetch artworks');
     }
@@ -358,7 +358,7 @@ export const getAllArtworks = async () => {
 // Get a single artwork
 export const getArtwork = async (id: string) => {
   try {
-    const response = await fetch(`${API_URL}/artworks/${id}`);
+    const response = await fetch(`${API_URL}/api/artworks/${id}`);
     if (!response.ok) {
       throw new Error('Failed to fetch artwork');
     }
@@ -372,7 +372,7 @@ export const getArtwork = async (id: string) => {
 // Get all exhibitions
 export const getAllExhibitions = async () => {
   try {
-    const response = await fetch(`${API_URL}/exhibitions`);
+    const response = await fetch(`${API_URL}/api/exhibitions`);
     if (!response.ok) {
       throw new Error('Failed to fetch exhibitions');
     }
@@ -387,7 +387,7 @@ export const getAllExhibitions = async () => {
 // Get a single exhibition
 export const getExhibition = async (id: string) => {
   try {
-    const response = await fetch(`${API_URL}/exhibitions/${id}`);
+    const response = await fetch(`${API_URL}/api/exhibitions/${id}`);
     if (!response.ok) {
       throw new Error('Failed to fetch exhibition');
     }
