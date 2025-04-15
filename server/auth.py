@@ -1,9 +1,11 @@
+
 import hashlib
 import secrets
 from database import get_db_connection, json_dumps
 import jwt
 import datetime
 from decimal import Decimal
+from functools import wraps
 
 # Secret key for JWT token generation - replace with a secure random string
 SECRET_KEY = "your_secret_key_replace_this_with_a_secure_random_string"
@@ -191,3 +193,93 @@ def create_admin(name, email, password):
         if connection.is_connected():
             cursor.close()
             connection.close()
+
+# Function to extract token from headers
+def get_user_id_from_token(auth_header):
+    """Extract user ID from auth token"""
+    if not auth_header:
+        return None
+        
+    token = None
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:]
+    else:
+        parts = auth_header.split(" ")
+        if len(parts) > 1:
+            token = parts[1]
+            
+    if not token:
+        return None
+        
+    payload = verify_token(token)
+    if isinstance(payload, dict) and "error" not in payload:
+        return payload.get("sub")  # user_id is stored in 'sub' claim
+    return None
+
+# Decorator for protected routes
+def login_required(f):
+    """Decorator to protect routes that require login"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({"error": "Authentication required"}), 401
+            
+        token = None
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]
+        else:
+            parts = auth_header.split(" ")
+            if len(parts) > 1:
+                token = parts[1]
+                
+        if not token:
+            return jsonify({"error": "Invalid authentication token"}), 401
+            
+        payload = verify_token(token)
+        if isinstance(payload, dict) and "error" in payload:
+            return jsonify({"error": payload["error"]}), 401
+            
+        # Add user info to flask.g for the view function to use
+        g.user_id = payload.get("sub")
+        g.user_name = payload.get("name")
+        g.is_admin = payload.get("is_admin", False)
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Decorator for admin-only routes
+def admin_required(f):
+    """Decorator to protect routes that require admin rights"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({"error": "Authentication required"}), 401
+            
+        token = None
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]
+        else:
+            parts = auth_header.split(" ")
+            if len(parts) > 1:
+                token = parts[1]
+                
+        if not token:
+            return jsonify({"error": "Invalid authentication token"}), 401
+            
+        payload = verify_token(token)
+        if isinstance(payload, dict) and "error" in payload:
+            return jsonify({"error": payload["error"]}), 401
+            
+        # Check if user is admin
+        if not payload.get("is_admin", False):
+            return jsonify({"error": "Unauthorized access: Admin privileges required"}), 403
+            
+        # Add user info to flask.g for the view function to use
+        g.user_id = payload.get("sub")
+        g.user_name = payload.get("name")
+        g.is_admin = True
+        
+        return f(*args, **kwargs)
+    return decorated_function
