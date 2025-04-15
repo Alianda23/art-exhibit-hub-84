@@ -27,6 +27,15 @@ def get_all_artworks():
             
             # Convert id to string to match frontend expectations
             artwork['id'] = str(artwork['id'])
+            
+            # Ensure image_url is properly formatted for frontend
+            if artwork.get('image_url') and not artwork['image_url'].startswith(('http', 'data:', '/static/')):
+                artwork['image_url'] = f"/static/uploads/{artwork['image_url']}"
+            
+            # Convert to camelCase for frontend
+            if 'image_url' in artwork:
+                artwork['imageUrl'] = artwork.pop('image_url')
+            
             artworks.append(artwork)
         
         return {"artworks": artworks}
@@ -62,6 +71,14 @@ def get_artwork(artwork_id):
         artwork = dict_from_row(row, cursor)
         # Convert id to string to match frontend expectations
         artwork['id'] = str(artwork['id'])
+        
+        # Ensure image_url is properly formatted for frontend
+        if artwork.get('image_url') and not artwork['image_url'].startswith(('http', 'data:', '/static/')):
+            artwork['image_url'] = f"/static/uploads/{artwork['image_url']}"
+        
+        # Convert to camelCase for frontend
+        if 'image_url' in artwork:
+            artwork['imageUrl'] = artwork.pop('image_url')
         
         return artwork
     except Exception as e:

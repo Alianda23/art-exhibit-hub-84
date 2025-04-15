@@ -61,7 +61,7 @@ const ArtworkCard = ({ artwork }: ArtworkCardProps) => {
           {formatPrice(artwork.price)}
         </p>
         <div className="text-gray-700 text-sm mb-4">
-          <p>{artwork.dimensions} | {artwork.medium}</p>
+          <p>{artwork.dimensions || 'N/A'} | {artwork.medium || 'N/A'}</p>
         </div>
         <Link to={`/artworks/${artwork.id}`}>
           <Button className="w-full bg-gold hover:bg-gold-dark text-white">

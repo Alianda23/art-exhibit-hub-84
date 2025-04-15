@@ -16,9 +16,10 @@ from flask import (
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
+from functools import wraps
 
 # Update imports to use correct database functions
-from database import get_db_connection, save_contact_message, get_all_contact_messages
+from database import get_db_connection, dict_from_row, json_dumps
 from auth import (
     generate_token, verify_token, login_required, 
     admin_required, get_user_id_from_token
@@ -31,16 +32,17 @@ from exhibition import (
     get_all_exhibitions, get_exhibition, 
     create_exhibition, update_exhibition, delete_exhibition
 )
-from contact import create_contact_message, get_messages
+from contact import create_contact_message, get_messages, update_message
 from mpesa import initiate_stk_push
 from middleware import set_cors_headers
+from setup_uploads import create_upload_directory, verify_static_serving
 
 # Initialize Flask app
 app = Flask(__name__)
 app.config['DATABASE'] = os.path.join(os.path.dirname(__file__), 'gallery.db')
 
 # Enable CORS
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 # Remove the database connection teardown since we're using different db functions
 # app.teardown_appcontext(close_db)
@@ -203,7 +205,7 @@ def add_artwork():
                 }), 400
         
         print(f"Inserting artwork data: {data}")
-        artwork_id = create_artwork(data)
+        artwork_id = create_artwork(request.headers.get('Authorization'), data)
         return jsonify({
             "status": "success", 
             "message": f"Artwork created successfully with ID: {artwork_id}",
@@ -234,7 +236,7 @@ def update_artwork_route(artwork_id):
                     "message": "Failed to process image"
                 }), 400
         
-        success = update_artwork(artwork_id, data)
+        success = update_artwork(request.headers.get('Authorization'), artwork_id, data)
         if not success:
             return jsonify({"status": "error", "message": "Artwork not found"}), 404
         return jsonify({"status": "success", "message": "Artwork updated successfully"})
@@ -247,7 +249,7 @@ def update_artwork_route(artwork_id):
 @admin_required
 def delete_artwork_route(artwork_id):
     try:
-        success = delete_artwork(artwork_id)
+        success = delete_artwork(request.headers.get('Authorization'), artwork_id)
         if not success:
             return jsonify({"status": "error", "message": "Artwork not found"}), 404
         return jsonify({"status": "success", "message": "Artwork deleted successfully"})
@@ -392,6 +394,15 @@ def stk_push():
 
 # Main entry point
 if __name__ == '__main__':
+    # Initialize the upload directory and static file serving
+    try:
+        create_upload_directory()
+        verify_static_serving()
+        print("Upload directory and static serving initialized successfully.")
+    except Exception as e:
+        print(f"Error initializing upload directory: {e}")
+        traceback.print_exc()
+    
     # Initialize the database table structure (moved init_db logic)
     try:
         # Use MySQL-specific initialization

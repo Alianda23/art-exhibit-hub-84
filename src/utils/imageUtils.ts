@@ -41,11 +41,11 @@ export const getValidImageUrl = (url: string, fallback: string = '/placeholder.s
     return url;
   }
   
-  // Critical change: Handle server paths by prepending server URL
+  // Critical improvement: Handle server paths by prepending server URL
   if (url.startsWith('/static/')) {
-    // Remove the leading slash so it correctly joins with the server URL
-    console.log("Constructed server URL:", `${SERVER_BASE_URL}${url}`, "from path:", url);
-    return `${SERVER_BASE_URL}${url}`;
+    const fullUrl = `${SERVER_BASE_URL}${url}`;
+    console.log("Constructed server URL:", fullUrl, "from path:", url);
+    return fullUrl;
   }
   
   // Prepend / if it's a relative path and doesn't already start with /
@@ -72,10 +72,22 @@ export const handleImageError = (
   fallback: string = '/placeholder.svg'
 ): void => {
   console.error(`Failed to load image: ${imageUrl}`);
-  (event.target as HTMLImageElement).src = fallback;
+  
+  // Set the fallback image
+  const imgElement = event.target as HTMLImageElement;
+  
+  // If the fallback is a relative path, make sure it has the server base URL
+  let fallbackUrl = fallback;
+  if (fallback.startsWith('/') && !fallback.startsWith('//') && !fallback.startsWith('/static/')) {
+    fallbackUrl = `${SERVER_BASE_URL}${fallback}`;
+  } else if (fallback.startsWith('/static/')) {
+    fallbackUrl = `${SERVER_BASE_URL}${fallback}`;
+  }
+  
+  imgElement.src = fallbackUrl;
   
   // Additional debugging
   console.log(`Image URL that failed: ${imageUrl}`);
-  console.log(`Using fallback: ${fallback}`);
+  console.log(`Using fallback: ${fallbackUrl}`);
   console.log(`Server base URL: ${SERVER_BASE_URL}`);
 };
