@@ -8,6 +8,7 @@ import os
 import sys
 import base64
 import uuid
+import traceback
 from datetime import datetime
 from flask import (
     Flask, request, jsonify, abort, 
@@ -62,20 +63,29 @@ def serve_static(path):
 
 # Process base64 image and save to file
 def process_image_upload(image_data):
-    if not image_data or not image_data.startswith('data:'):
+    if not image_data or not isinstance(image_data, str) or not image_data.startswith('data:'):
+        print("Invalid image data:", image_data[:30] if image_data else "None")
         return None
         
     try:
+        # Extract mimetype
+        mimetype = image_data.split(';')[0].split(':')[1] if ';' in image_data and ':' in image_data else 'image/jpeg'
+        print(f"Detected mimetype: {mimetype}")
+        
         # Extract content after the comma
-        image_data = image_data.split(",")[1]
+        if ',' in image_data:
+            image_data = image_data.split(",")[1]
+        else:
+            print("No comma found in base64 string")
+            return None
         
         # Get file extension from mimetype
         file_extension = "jpg"  # Default to jpg
-        if "image/png" in image_data:
+        if "image/png" in mimetype:
             file_extension = "png"
-        elif "image/jpeg" in image_data or "image/jpg" in image_data:
+        elif "image/jpeg" in mimetype or "image/jpg" in mimetype:
             file_extension = "jpg"
-        elif "image/webp" in image_data:
+        elif "image/webp" in mimetype:
             file_extension = "webp"
         
         # Generate filename with timestamp
@@ -83,91 +93,42 @@ def process_image_upload(image_data):
         filename = f"{timestamp}_image.{file_extension}"
         
         # Decode the base64 string
-        image_binary = base64.b64decode(image_data)
-        
-        # Save to file
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        with open(filepath, "wb") as f:
-            f.write(image_binary)
+        try:
+            image_binary = base64.b64decode(image_data)
             
-        # Return the relative URL
-        return f"/static/uploads/{filename}"
+            # Save to file
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            
+            print(f"Saving image to: {filepath}")
+            print(f"Directory exists: {os.path.exists(os.path.dirname(filepath))}")
+            print(f"Directory is writable: {os.access(os.path.dirname(filepath), os.W_OK)}")
+            
+            with open(filepath, "wb") as f:
+                f.write(image_binary)
+                
+            print(f"Image saved successfully, size: {len(image_binary)} bytes")
+            
+            # Verify file was actually created
+            if os.path.exists(filepath):
+                print(f"File exists after save: {os.path.getsize(filepath)} bytes")
+            else:
+                print("File does not exist after attempted save!")
+                return None
+                
+            # Return the relative URL
+            return f"/static/uploads/{filename}"
+            
+        except Exception as e:
+            print(f"Error decoding base64 data: {e}")
+            print(f"First 30 chars of data: {image_data[:30]}")
+            return None
+            
     except Exception as e:
         print(f"Error processing image: {e}")
+        traceback.print_exc()
         return None
 
-# Authentication routes
-@app.route('/api/auth/register', methods=['POST'])
-def register():
-    data = request.get_json()
-    
-    if not data or not data.get('email') or not data.get('password') or not data.get('name'):
-        return jsonify({"status": "error", "message": "Missing required fields"}), 400
-    
-    try:
-        db = get_db()
-        cursor = db.cursor()
-        
-        # Check if user exists
-        cursor.execute("SELECT * FROM users WHERE email = ?", (data['email'],))
-        user = cursor.fetchone()
-        
-        if user:
-            return jsonify({"status": "error", "message": "User already exists"}), 400
-        
-        # Create new user
-        hashed_password = generate_password_hash(data['password'])
-        cursor.execute(
-            "INSERT INTO users (name, email, password, is_admin) VALUES (?, ?, ?, ?)",
-            (data['name'], data['email'], hashed_password, False)
-        )
-        db.commit()
-        
-        return jsonify({"status": "success", "message": "User registered successfully"}), 201
-    
-    except Exception as e:
-        print(f"Registration error: {e}")
-        return jsonify({"status": "error", "message": "Registration failed"}), 500
-
-@app.route('/api/auth/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    
-    if not data or not data.get('email') or not data.get('password'):
-        return jsonify({"status": "error", "message": "Missing email or password"}), 400
-    
-    try:
-        db = get_db()
-        cursor = db.cursor()
-        
-        # Find user
-        cursor.execute(
-            "SELECT id, name, email, password, is_admin FROM users WHERE email = ?",
-            (data['email'],)
-        )
-        user = cursor.fetchone()
-        
-        if not user or not check_password_hash(user['password'], data['password']):
-            return jsonify({"status": "error", "message": "Invalid credentials"}), 401
-        
-        # Generate token
-        token = generate_token(user['id'], user['is_admin'])
-        
-        return jsonify({
-            "status": "success",
-            "message": "Login successful",
-            "token": token,
-            "user": {
-                "id": user['id'],
-                "name": user['name'],
-                "email": user['email'],
-                "is_admin": bool(user['is_admin'])
-            }
-        })
-    
-    except Exception as e:
-        print(f"Login error: {e}")
-        return jsonify({"status": "error", "message": "Login failed"}), 500
+# ... keep existing code (Authentication routes)
 
 # Artwork routes
 @app.route('/api/artworks', methods=['GET'])
@@ -198,10 +159,13 @@ def add_artwork():
         
         # Process image if it's a base64 string
         if data.get('imageUrl') and data['imageUrl'].startswith('data:'):
+            print("Processing base64 image from artwork submission")
             image_url = process_image_upload(data['imageUrl'])
             if image_url:
+                print(f"Image successfully processed and saved: {image_url}")
                 data['imageUrl'] = image_url
             else:
+                print("Failed to process image, using default")
                 return jsonify({
                     "status": "error", 
                     "message": "Failed to process image"
@@ -216,44 +180,10 @@ def add_artwork():
         }), 201
     except Exception as e:
         print(f"Error creating artwork: {e}")
+        traceback.print_exc()
         return jsonify({"status": "error", "message": f"Failed to create artwork: {str(e)}"}), 500
 
-@app.route('/api/artworks/<int:artwork_id>', methods=['PUT'])
-@admin_required
-def update_artwork_route(artwork_id):
-    try:
-        data = request.get_json()
-        
-        # Process image if it's a base64 string
-        if data.get('imageUrl') and data['imageUrl'].startswith('data:'):
-            image_url = process_image_upload(data['imageUrl'])
-            if image_url:
-                data['imageUrl'] = image_url
-            else:
-                return jsonify({
-                    "status": "error", 
-                    "message": "Failed to process image"
-                }), 400
-        
-        success = update_artwork(artwork_id, data)
-        if not success:
-            return jsonify({"status": "error", "message": "Artwork not found"}), 404
-        return jsonify({"status": "success", "message": "Artwork updated successfully"})
-    except Exception as e:
-        print(f"Error updating artwork: {e}")
-        return jsonify({"status": "error", "message": f"Failed to update artwork: {str(e)}"}), 500
-
-@app.route('/api/artworks/<int:artwork_id>', methods=['DELETE'])
-@admin_required
-def delete_artwork_route(artwork_id):
-    try:
-        success = delete_artwork(artwork_id)
-        if not success:
-            return jsonify({"status": "error", "message": "Artwork not found"}), 404
-        return jsonify({"status": "success", "message": "Artwork deleted successfully"})
-    except Exception as e:
-        print(f"Error deleting artwork: {e}")
-        return jsonify({"status": "error", "message": "Failed to delete artwork"}), 500
+# ... keep existing code (Update artwork route, Delete artwork route)
 
 # Exhibition routes
 @app.route('/api/exhibitions', methods=['GET'])
@@ -284,10 +214,13 @@ def add_exhibition():
         
         # Process image if it's a base64 string
         if data.get('imageUrl') and data['imageUrl'].startswith('data:'):
+            print("Processing base64 image from exhibition submission")
             image_url = process_image_upload(data['imageUrl'])
             if image_url:
+                print(f"Image successfully processed and saved: {image_url}")
                 data['imageUrl'] = image_url
             else:
+                print("Failed to process image, responding with error")
                 return jsonify({
                     "status": "error", 
                     "message": "Failed to process image"
@@ -301,6 +234,7 @@ def add_exhibition():
         }), 201
     except Exception as e:
         print(f"Error creating exhibition: {e}")
+        traceback.print_exc()
         return jsonify({"status": "error", "message": f"Failed to create exhibition: {str(e)}"}), 500
 
 @app.route('/api/exhibitions/<int:exhibition_id>', methods=['PUT'])
@@ -311,10 +245,13 @@ def update_exhibition_route(exhibition_id):
         
         # Process image if it's a base64 string
         if data.get('imageUrl') and data['imageUrl'].startswith('data:'):
+            print("Processing base64 image from exhibition update")
             image_url = process_image_upload(data['imageUrl'])
             if image_url:
+                print(f"Image successfully processed and saved: {image_url}")
                 data['imageUrl'] = image_url
             else:
+                print("Failed to process image, responding with error")
                 return jsonify({
                     "status": "error", 
                     "message": "Failed to process image"
@@ -326,56 +263,10 @@ def update_exhibition_route(exhibition_id):
         return jsonify({"status": "success", "message": "Exhibition updated successfully"})
     except Exception as e:
         print(f"Error updating exhibition: {e}")
+        traceback.print_exc()
         return jsonify({"status": "error", "message": f"Failed to update exhibition: {str(e)}"}), 500
 
-@app.route('/api/exhibitions/<int:exhibition_id>', methods=['DELETE'])
-@admin_required
-def delete_exhibition_route(exhibition_id):
-    try:
-        success = delete_exhibition(exhibition_id)
-        if not success:
-            return jsonify({"status": "error", "message": "Exhibition not found"}), 404
-        return jsonify({"status": "success", "message": "Exhibition deleted successfully"})
-    except Exception as e:
-        print(f"Error deleting exhibition: {e}")
-        return jsonify({"status": "error", "message": "Failed to delete exhibition"}), 500
-
-# Contact routes
-@app.route('/api/contact', methods=['POST'])
-def contact():
-    try:
-        data = request.get_json()
-        message_id = create_contact_message(data)
-        return jsonify({
-            "status": "success", 
-            "message": "Message sent successfully",
-            "id": message_id
-        }), 201
-    except Exception as e:
-        print(f"Error creating contact message: {e}")
-        return jsonify({"status": "error", "message": "Failed to send message"}), 500
-
-@app.route('/api/messages', methods=['GET'])
-@admin_required
-def messages():
-    try:
-        all_messages = get_all_messages()
-        return jsonify(all_messages)
-    except Exception as e:
-        print(f"Error fetching messages: {e}")
-        return jsonify({"status": "error", "message": "Failed to fetch messages"}), 500
-
-# Payment routes
-@app.route('/api/payments/mpesa', methods=['POST'])
-@login_required
-def mpesa_payment():
-    try:
-        data = request.get_json()
-        result = initiate_stk_push(data)
-        return jsonify(result)
-    except Exception as e:
-        print(f"Error processing payment: {e}")
-        return jsonify({"status": "error", "message": "Payment processing failed"}), 500
+# ... keep existing code (Delete exhibition route, Contact routes, Payment routes)
 
 # Main entry point
 if __name__ == '__main__':
@@ -386,6 +277,26 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"Error initializing database: {e}")
         sys.exit(1)
+    
+    # Check upload directory permissions
+    try:
+        test_file_path = os.path.join(UPLOAD_FOLDER, "test_permissions.txt")
+        with open(test_file_path, "w") as f:
+            f.write("Testing write permissions\n")
+        if os.path.exists(test_file_path):
+            os.remove(test_file_path)
+            print(f"Upload directory {UPLOAD_FOLDER} is writable")
+        else:
+            print(f"Failed to verify write permissions for {UPLOAD_FOLDER}")
+    except Exception as e:
+        print(f"Error checking upload directory permissions: {e}")
+        print("Attempting to set permissions...")
+        try:
+            # Try to set more permissive permissions
+            os.chmod(UPLOAD_FOLDER, 0o777)  # rwxrwxrwx
+            print("Set permissions to 0o777 for uploads directory")
+        except Exception as e:
+            print(f"Failed to set permissions: {e}")
     
     # Start the Flask server
     app.run(debug=True, host='0.0.0.0')

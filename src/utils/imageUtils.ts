@@ -14,21 +14,30 @@ const SERVER_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
  * @returns A valid image URL
  */
 export const getValidImageUrl = (url: string, fallback: string = '/placeholder.svg'): string => {
+  // For debugging
+  console.log("Processing image URL:", url);
+  
   // Handle empty or undefined URLs
-  if (!url) return fallback;
+  if (!url) {
+    console.log("Empty URL detected, using fallback:", fallback);
+    return fallback;
+  }
   
   // Handle base64 images (return as-is)
   if (url.startsWith('data:')) {
+    console.log("Base64 image detected");
     return url;
   }
 
   // Fix protocol issues (like https:;//)
   if (url.includes('://;')) {
     url = url.replace('://;', '://');
+    console.log("Fixed protocol issue in URL:", url);
   }
   
   // If it's an absolute URL, return as is
   if (url.startsWith('http')) {
+    console.log("Absolute URL detected, using as-is:", url);
     return url;
   }
   
@@ -41,10 +50,12 @@ export const getValidImageUrl = (url: string, fallback: string = '/placeholder.s
   
   // Prepend / if it's a relative path and doesn't already start with /
   if (!url.startsWith('/')) {
+    console.log("Adding leading slash to relative path:", `/${url}`);
     return `/${url}`;
   }
   
   // For other paths starting with /, prepend server URL
+  console.log("Adding server base to path:", `${SERVER_BASE_URL}${url}`);
   return `${SERVER_BASE_URL}${url}`;
 };
 

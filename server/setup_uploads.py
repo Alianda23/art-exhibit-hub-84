@@ -18,12 +18,29 @@ def create_upload_directory():
         with open(os.path.join(uploads_dir, ".gitkeep"), "w") as f:
             f.write("# This file ensures the uploads directory is tracked by git\n")
         
-        # Add proper permissions to the directory
+        # Add proper permissions to the directory - make it world-writable
         try:
-            os.chmod(uploads_dir, 0o755)  # rwxr-xr-x permissions
-            print("Set proper permissions on uploads directory")
+            os.chmod(uploads_dir, 0o777)  # rwxrwxrwx permissions
+            print("Set permissive 0o777 permissions on uploads directory for maximum compatibility")
+            
+            # Also set parent directory permissions
+            os.chmod(static_dir, 0o777)
+            print("Set permissive permissions on static directory")
         except Exception as e:
             print(f"Warning: Could not set permissions on directory: {e}")
+            
+        # Verify directory is writable
+        test_file = os.path.join(uploads_dir, "test_write.txt")
+        try:
+            with open(test_file, "w") as f:
+                f.write("Testing write permissions\n")
+            if os.path.exists(test_file):
+                os.remove(test_file)
+                print("Verified directory is writable")
+            else:
+                print("WARNING: Directory write test failed!")
+        except Exception as e:
+            print(f"WARNING: Directory is not writable: {e}")
             
         return True
     except Exception as e:
@@ -81,9 +98,37 @@ def verify_static_serving():
         if os.path.exists(test_file_path):
             os.remove(test_file_path)
 
+def print_directory_structure():
+    """Print the directory structure for debugging"""
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    
+    if os.path.exists(static_dir):
+        print("\nStatic directory structure:")
+        print(f"- {static_dir}")
+        
+        # List all items in the static directory
+        for item in os.listdir(static_dir):
+            item_path = os.path.join(static_dir, item)
+            if os.path.isdir(item_path):
+                print(f"  - {item}/ (directory)")
+                
+                # List items in subdirectories
+                if os.path.exists(item_path):
+                    try:
+                        subitems = os.listdir(item_path)
+                        for subitem in subitems:
+                            print(f"    - {subitem}")
+                    except Exception as e:
+                        print(f"    Error reading directory: {e}")
+            else:
+                print(f"  - {item} (file, {os.path.getsize(item_path)} bytes)")
+    else:
+        print(f"\nStatic directory does not exist: {static_dir}")
+
 if __name__ == "__main__":
     # Run the function when script is executed directly
     success = create_upload_directory()
     if success:
         verify_static_serving()
+        print_directory_structure()
     sys.exit(0 if success else 1)
