@@ -35,6 +35,7 @@ export const getValidImageUrl = (url: string, fallback: string = '/placeholder.s
   // Critical change: Handle server paths by prepending server URL
   if (url.startsWith('/static/')) {
     // Remove the leading slash so it correctly joins with the server URL
+    console.log("Constructed server URL:", `${SERVER_BASE_URL}${url}`, "from path:", url);
     return `${SERVER_BASE_URL}${url}`;
   }
   
