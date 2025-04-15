@@ -278,10 +278,10 @@ export const submitContactMessage = async (formData: any) => {
 };
 
 // Messages management
-export const getAllContactMessages = async (): Promise<ContactMessage[]> => {
+export const getAllContactMessages = async (): Promise<{ messages: ContactMessage[] }> => {
   try {
     const response = await api.get('/contact/messages');
-    return response.data.messages || [];
+    return response.data || { messages: [] };
   } catch (error) {
     console.error('Error fetching contact messages:', error);
     throw new Error('Failed to fetch contact messages');
@@ -299,10 +299,10 @@ export const updateMessageStatus = async (id: string, status: 'new' | 'read' | '
 };
 
 // Ticket management
-export const getAllTickets = async (): Promise<TicketData[]> => {
+export const getAllTickets = async (): Promise<{ tickets: TicketData[] }> => {
   try {
     const response = await api.get('/tickets');
-    return response.data.tickets || [];
+    return response.data || { tickets: [] };
   } catch (error) {
     console.error('Error fetching tickets:', error);
     throw new Error('Failed to fetch tickets');

@@ -86,7 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       console.log('AuthContext: Attempting user login', { email });
-      const response = await loginUser({ email, password });
+      const response = await loginUser(email, password);
       
       if (response.error) {
         console.log('AuthContext: Login failed', response.error);
@@ -115,7 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const adminLogin = async (email: string, password: string): Promise<boolean> => {
     try {
       console.log('AuthContext: Attempting admin login', { email });
-      const response = await loginAdmin({ email, password });
+      const response = await loginAdmin(email, password);
       
       if (response.error) {
         console.log('AuthContext: Admin login failed', response.error);
