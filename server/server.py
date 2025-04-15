@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 """
 Flask server for the gallery web application.
@@ -22,7 +21,7 @@ from functools import wraps
 # Update imports to use correct database functions
 from database import get_db_connection, dict_from_row, json_dumps
 from auth import (
-    verify_token, login_required, 
+    generate_token, verify_token, login_required, 
     admin_required, get_user_id_from_token
 )
 from artwork import (
@@ -35,6 +34,8 @@ from exhibition import (
 )
 from contact import create_contact_message, get_messages, update_message
 from mpesa import initiate_stk_push
+from middleware import set_cors_headers
+from setup_uploads import create_upload_directory, verify_static_serving
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -43,12 +44,8 @@ app.config['DATABASE'] = os.path.join(os.path.dirname(__file__), 'gallery.db')
 # Enable CORS
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-# CORS middleware
-def set_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    return response
+# Remove the database connection teardown since we're using different db functions
+# app.teardown_appcontext(close_db)
 
 # Ensure upload directory exists
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'uploads')
@@ -136,24 +133,35 @@ def process_image_upload(image_data):
 # Authentication routes
 @app.route('/register', methods=['POST'])
 def register():
-    from auth import register_user
     data = request.get_json()
-    result = register_user(data.get('name'), data.get('email'), data.get('password'), data.get('phone'))
+    result = auth.register_user(data.get('name'), data.get('email'), data.get('password'), data.get('phone'))
     return jsonify(result)
 
 @app.route('/login', methods=['POST'])
 def login():
-    from auth import login_user
     data = request.get_json()
-    result = login_user(data.get('email'), data.get('password'))
+    result = auth.login_user(data.get('email'), data.get('password'))
     return jsonify(result)
 
 @app.route('/admin-login', methods=['POST'])
 def admin_login():
-    from auth import login_admin
     data = request.get_json()
-    result = login_admin(data.get('email'), data.get('password'))
+    result = auth.login_admin(data.get('email'), data.get('password'))
     return jsonify(result)
+
+# Middleware to verify token
+def verify_token_middleware(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization')
+        if not token:
+            return jsonify({'message': 'Token is missing'}), 403
+        try:
+            data = auth.decode_token(token)
+        except:
+            return jsonify({'message': 'Token is invalid'}), 403
+        return f(*args, **kwargs)
+    return decorated
 
 # Artwork routes
 @app.route('/api/artworks', methods=['GET'])
@@ -197,15 +205,11 @@ def add_artwork():
                 }), 400
         
         print(f"Inserting artwork data: {data}")
-        result = create_artwork(request.headers.get('Authorization'), data)
-        
-        if "error" in result:
-            return jsonify({"status": "error", "message": result["error"]}), 400
-            
+        artwork_id = create_artwork(request.headers.get('Authorization'), data)
         return jsonify({
             "status": "success", 
-            "message": "Artwork created successfully",
-            "artwork": result
+            "message": f"Artwork created successfully with ID: {artwork_id}",
+            "id": artwork_id
         }), 201
     except Exception as e:
         print(f"Error creating artwork: {e}")
@@ -232,16 +236,10 @@ def update_artwork_route(artwork_id):
                     "message": "Failed to process image"
                 }), 400
         
-        result = update_artwork(request.headers.get('Authorization'), artwork_id, data)
-        
-        if "error" in result:
-            return jsonify({"status": "error", "message": result["error"]}), 400 if result["error"] != "Artwork not found" else 404
-            
-        return jsonify({
-            "status": "success", 
-            "message": "Artwork updated successfully",
-            "artwork": result
-        })
+        success = update_artwork(request.headers.get('Authorization'), artwork_id, data)
+        if not success:
+            return jsonify({"status": "error", "message": "Artwork not found"}), 404
+        return jsonify({"status": "success", "message": "Artwork updated successfully"})
     except Exception as e:
         print(f"Error updating artwork: {e}")
         traceback.print_exc()
@@ -251,15 +249,10 @@ def update_artwork_route(artwork_id):
 @admin_required
 def delete_artwork_route(artwork_id):
     try:
-        result = delete_artwork(request.headers.get('Authorization'), artwork_id)
-        
-        if "error" in result:
-            return jsonify({"status": "error", "message": result["error"]}), 400 if result["error"] != "Artwork not found" else 404
-            
-        return jsonify({
-            "status": "success", 
-            "message": "Artwork deleted successfully"
-        })
+        success = delete_artwork(request.headers.get('Authorization'), artwork_id)
+        if not success:
+            return jsonify({"status": "error", "message": "Artwork not found"}), 404
+        return jsonify({"status": "success", "message": "Artwork deleted successfully"})
     except Exception as e:
         print(f"Error deleting artwork: {e}")
         traceback.print_exc()
@@ -306,15 +299,11 @@ def add_exhibition():
                     "message": "Failed to process image"
                 }), 400
         
-        result = create_exhibition(request.headers.get('Authorization'), data)
-        
-        if "error" in result:
-            return jsonify({"status": "error", "message": result["error"]}), 400
-            
+        exhibition_id = create_exhibition(data)
         return jsonify({
             "status": "success", 
             "message": "Exhibition created successfully",
-            "exhibition": result
+            "id": exhibition_id
         }), 201
     except Exception as e:
         print(f"Error creating exhibition: {e}")
@@ -341,16 +330,10 @@ def update_exhibition_route(exhibition_id):
                     "message": "Failed to process image"
                 }), 400
         
-        result = update_exhibition(request.headers.get('Authorization'), exhibition_id, data)
-        
-        if "error" in result:
-            return jsonify({"status": "error", "message": result["error"]}), 400 if result["error"] != "Exhibition not found" else 404
-            
-        return jsonify({
-            "status": "success", 
-            "message": "Exhibition updated successfully",
-            "exhibition": result
-        })
+        success = update_exhibition(exhibition_id, data)
+        if not success:
+            return jsonify({"status": "error", "message": "Exhibition not found"}), 404
+        return jsonify({"status": "success", "message": "Exhibition updated successfully"})
     except Exception as e:
         print(f"Error updating exhibition: {e}")
         traceback.print_exc()
@@ -360,15 +343,10 @@ def update_exhibition_route(exhibition_id):
 @admin_required
 def delete_exhibition_route(exhibition_id):
     try:
-        result = delete_exhibition(request.headers.get('Authorization'), exhibition_id)
-        
-        if "error" in result:
-            return jsonify({"status": "error", "message": result["error"]}), 400 if result["error"] != "Exhibition not found" else 404
-            
-        return jsonify({
-            "status": "success", 
-            "message": "Exhibition deleted successfully"
-        })
+        success = delete_exhibition(exhibition_id)
+        if not success:
+            return jsonify({"status": "error", "message": "Exhibition not found"}), 404
+        return jsonify({"status": "success", "message": "Exhibition deleted successfully"})
     except Exception as e:
         print(f"Error deleting exhibition: {e}")
         traceback.print_exc()
@@ -408,95 +386,11 @@ def stk_push():
     account_reference = data.get('accountReference')
     
     try:
-        response = initiate_stk_push(phone_number, amount, account_reference, order_type, order_id, user_id)
+        response = initiate_stk_push(phone_number, amount, order_type, order_id, user_id, account_reference)
         return jsonify(response)
     except Exception as e:
         print(f"M-Pesa Error: {e}")
         return jsonify({"error": str(e)}), 500
-
-# Create functions to set up the database and upload directory
-def create_upload_directory():
-    """Create the static/uploads directory for storing uploaded images"""
-    # Define the path for uploads directory
-    uploads_dir = os.path.join(os.path.dirname(__file__), "static", "uploads")
-    static_dir = os.path.join(os.path.dirname(__file__), "static")
-    
-    # Create the directories if they don't exist
-    try:
-        os.makedirs(uploads_dir, exist_ok=True)
-        print(f"Successfully created uploads directory at: {uploads_dir}")
-        
-        # Add a .gitkeep file to ensure the directory is tracked by git
-        with open(os.path.join(uploads_dir, ".gitkeep"), "w") as f:
-            f.write("# This file ensures the uploads directory is tracked by git\n")
-        
-        # Add proper permissions to the directory - make it world-writable
-        try:
-            os.chmod(uploads_dir, 0o777)  # rwxrwxrwx permissions
-            print("Set permissive 0o777 permissions on uploads directory for maximum compatibility")
-            
-            # Also set parent directory permissions
-            os.chmod(static_dir, 0o777)
-            print("Set permissive permissions on static directory")
-        except Exception as e:
-            print(f"Warning: Could not set permissions on directory: {e}")
-            
-        # Verify directory is writable
-        test_file = os.path.join(uploads_dir, "test_write.txt")
-        try:
-            with open(test_file, "w") as f:
-                f.write("Testing write permissions\n")
-            if os.path.exists(test_file):
-                os.remove(test_file)
-                print("Verified directory is writable")
-            else:
-                print("WARNING: Directory write test failed!")
-        except Exception as e:
-            print(f"WARNING: Directory is not writable: {e}")
-            
-        return True
-    except Exception as e:
-        print(f"Error creating uploads directory: {e}")
-        return False
-
-def verify_static_serving():
-    """Verify that static files are properly served"""
-    static_dir = os.path.join(os.path.dirname(__file__), "static")
-    
-    # Ensure static directory exists
-    os.makedirs(static_dir, exist_ok=True)
-    
-    test_file_path = os.path.join(static_dir, "test.txt")
-    
-    try:
-        # Create a test file in the static directory
-        with open(test_file_path, "w") as f:
-            f.write("Test file for static serving\n")
-        
-        print("Created test file for static serving")
-        
-        # Add a placeholder image
-        placeholder_path = os.path.join(static_dir, "placeholder.svg")
-        if not os.path.exists(placeholder_path):
-            try:
-                # Create a simple SVG placeholder
-                with open(placeholder_path, "w") as f:
-                    f.write('''<svg width="300" height="300" xmlns="http://www.w3.org/2000/svg">
-                        <rect width="300" height="300" fill="#f0f0f0"/>
-                        <text x="50%" y="50%" font-family="Arial" font-size="24" fill="#999" text-anchor="middle">Image Placeholder</text>
-                    </svg>''')
-                print("Created placeholder SVG in static directory")
-            except Exception as e:
-                print(f"Warning: Could not create placeholder SVG: {e}")
-        
-        return True
-    except Exception as e:
-        print(f"Error verifying static serving: {e}")
-        return False
-    finally:
-        # Clean up test file
-        if os.path.exists(test_file_path):
-            os.remove(test_file_path)
 
 # Main entry point
 if __name__ == '__main__':
@@ -509,7 +403,7 @@ if __name__ == '__main__':
         print(f"Error initializing upload directory: {e}")
         traceback.print_exc()
     
-    # Initialize the database table structure
+    # Initialize the database table structure (moved init_db logic)
     try:
         # Use MySQL-specific initialization
         from db_setup import initialize_database
@@ -540,4 +434,4 @@ if __name__ == '__main__':
             print(f"Failed to set permissions: {e}")
     
     # Start the Flask server
-    app.run(debug=True, host='0.0.0.0', port=8000)
+    app.run(debug=True, host='0.0.0.0')

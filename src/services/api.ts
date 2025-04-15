@@ -1,34 +1,48 @@
+// API service to connect to the Python backend
 
-import axios from 'axios';
+// Base URL for the API
+const API_URL = 'http://localhost:8000';
 
-// Base URL for API requests
-// For deployed application use relative URLs
-const API_BASE_URL = '/api';
+// Interface for auth responses
+interface AuthResponse {
+  token?: string;
+  user_id?: number;
+  admin_id?: number;
+  name?: string;
+  error?: string;
+}
 
-// Create an axios instance with default config
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+// Interface for login data
+interface LoginData {
+  email: string;
+  password: string;
+}
 
-// Type definitions for our data models
+// Interface for registration data
+interface RegisterData {
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+}
+
+// Interface for artwork data
 export interface ArtworkData {
-  id: string;
+  id?: string;
   title: string;
   artist: string;
   description: string;
   price: number;
   imageUrl: string;
-  medium: string;
-  dimensions: string;
-  year: number;
-  status: 'available' | 'sold';  // Changed from string to union type
+  dimensions?: string;
+  medium?: string;
+  year?: number;
+  status: 'available' | 'sold';
 }
 
+// Interface for exhibition data
 export interface ExhibitionData {
-  id: string;
+  id?: string;
   title: string;
   description: string;
   location: string;
@@ -38,295 +52,484 @@ export interface ExhibitionData {
   imageUrl: string;
   totalSlots: number;
   availableSlots: number;
-  status: 'upcoming' | 'ongoing' | 'past';  // Changed from string to union type
+  status: 'upcoming' | 'ongoing' | 'past';
 }
 
-export interface ContactMessage {
-  id: string;
+// Interface for contact message
+interface ContactMessage {
   name: string;
   email: string;
-  phone: string | null;
+  phone?: string;
   message: string;
-  date: string;
-  status: 'new' | 'read' | 'replied';
-  source?: 'contact_form' | 'chat_bot';
+  source?: string; // Added source field
 }
 
-export interface TicketData {
-  id: string;
-  exhibitionId: string;
-  exhibitionTitle: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  purchaseDate: string;
-  ticketCode: string;
-  status: 'valid' | 'used' | 'cancelled';
-  price: number;
-  bookingDate: string;
-  slots: number;
-}
-
-// Request interceptor for adding auth token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+// Helper function to store auth data
+const storeAuthData = (data: AuthResponse, isAdmin: boolean) => {
+  if (data.token) {
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('userName', data.name || '');
+    localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false');
+    
+    // Store user or admin ID
+    if (data.user_id) {
+      localStorage.setItem('userId', data.user_id.toString());
+    } else if (data.admin_id) {
+      localStorage.setItem('adminId', data.admin_id.toString());
     }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+    
+    return true;
   }
-);
-
-// Authentication functions
-export const loginUser = async (email: string, password: string) => {
-  try {
-    // Updated to use /api/login instead of just /login
-    const response = await api.post('/auth/login', { email, password });
-    // Store token in localStorage
-    if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('userId', response.data.user_id);
-      localStorage.setItem('userName', response.data.name);
-      localStorage.setItem('isAdmin', 'false');
-    }
-    return response.data;
-  } catch (error) {
-    console.error('Login error:', error);
-    throw new Error('Login failed');
-  }
+  
+  return false;
 };
 
-export const loginAdmin = async (email: string, password: string) => {
+// Register a new user
+export const registerUser = async (userData: RegisterData): Promise<AuthResponse> => {
   try {
-    // Updated to use /api/admin-login instead of just /admin-login
-    const response = await api.post('/auth/admin-login', { email, password });
-    // Store token in localStorage
-    if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('adminId', response.data.admin_id);
-      localStorage.setItem('userName', response.data.name);
-      localStorage.setItem('isAdmin', 'true');
-    }
-    return response.data;
-  } catch (error) {
-    console.error('Admin login error:', error);
-    throw new Error('Admin login failed');
-  }
-};
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-export const registerUser = async (userData: any) => {
-  try {
-    // Updated to use /api/register instead of just /register
-    const response = await api.post('/auth/register', userData);
-    return response.data;
+    const response = await fetch(`${API_URL}/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    const data = await response.json();
+    
+    if (response.ok) {
+      storeAuthData(data, false);
+    }
+    
+    return data;
   } catch (error) {
     console.error('Registration error:', error);
-    throw new Error('Registration failed');
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return { error: 'Connection timeout. Server may be down or unreachable.' };
+    }
+    return { error: 'Network error. Please try again.' };
   }
 };
 
-export const logout = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('userId');
-  localStorage.removeItem('adminId');
-  localStorage.removeItem('userName');
-  localStorage.removeItem('isAdmin');
+// Login a user
+export const loginUser = async (credentials: LoginData): Promise<AuthResponse> => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+    const response = await fetch(`${API_URL}/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    const data = await response.json();
+    
+    if (response.ok) {
+      storeAuthData(data, false);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Login error:', error);
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return { error: 'Connection timeout. Server may be down or unreachable.' };
+    }
+    return { error: 'Network error. Please try again.' };
+  }
 };
 
+// Login as admin
+export const loginAdmin = async (credentials: LoginData): Promise<AuthResponse> => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+    const response = await fetch(`${API_URL}/admin-login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    const data = await response.json();
+    
+    if (response.ok) {
+      console.log("Admin login successful, storing data:", {
+        ...data,
+        token: data.token ? `${data.token.substring(0, 20)}...` : null
+      });
+      storeAuthData(data, true);
+    } else {
+      console.error("Admin login failed:", data.error);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Admin login error:', error);
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return { error: 'Connection timeout. Server may be down or unreachable.' };
+    }
+    return { error: 'Network error. Please try again.' };
+  }
+};
+
+// Get the auth token
+export const getToken = (): string | null => {
+  return localStorage.getItem('token');
+};
+
+// Check if user is authenticated
 export const isAuthenticated = (): boolean => {
-  const token = localStorage.getItem('token');
-  return !!token;
+  return !!getToken();
 };
 
+// Check if user is an admin
 export const isAdmin = (): boolean => {
   return localStorage.getItem('isAdmin') === 'true';
 };
 
-// Artwork API endpoints
-export const getArtworks = async () => {
+// Logout user
+export const logout = (): void => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('userName');
+  localStorage.removeItem('isAdmin');
+  localStorage.removeItem('userId');
+  localStorage.removeItem('adminId');
+};
+
+// API request with authentication
+export const authFetch = async (url: string, options: RequestInit = {}): Promise<any> => {
+  const token = getToken();
+  
+  if (!token) {
+    console.error('No authentication token found');
+    throw new Error('No authentication token found');
+  }
+  
+  // Ensure correct Authorization header format
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+  
   try {
-    const response = await api.get('/artworks');
-    return response.data;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    
+    console.log(`Making authenticated request to: ${API_URL}${url}`);
+    console.log('Using token:', token.substring(0, 20) + '...');
+    console.log('Request options:', { 
+      ...options, 
+      headers: { ...headers, Authorization: 'Bearer [REDACTED]' } 
+    });
+    
+    const response = await fetch(`${API_URL}${url}`, {
+      ...options,
+      headers,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    let data;
+    // Parse response based on content type
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        data = { text };
+      }
+    }
+    
+    console.log('Response status:', response.status);
+    console.log('Response data:', data);
+    
+    // Handle different status codes
+    if (response.status === 401) {
+      // Token expired or invalid
+      logout();
+      throw new Error('Session expired. Please login again.');
+    }
+    
+    if (response.status === 403) {
+      console.error('403 Forbidden error - Access denied', data);
+      throw new Error(data.error || 'Access denied. Please check your permissions.');
+    }
+    
+    if (!response.ok) {
+      throw new Error(data.error || `Request failed with status ${response.status}`);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('API request error:', error);
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Connection timeout. Server may be down or unreachable.');
+    }
+    throw error;
+  }
+};
+
+// Create a new artwork (admin only)
+export const createArtwork = async (artworkData: ArtworkData) => {
+  console.log('Creating artwork with data:', artworkData);
+  return await authFetch('/artworks', {
+    method: 'POST',
+    body: JSON.stringify(artworkData),
+  });
+};
+
+// Update existing artwork (admin only)
+export const updateArtwork = async (id: string, artworkData: ArtworkData) => {
+  console.log(`Updating artwork ${id} with data:`, artworkData);
+  return await authFetch(`/artworks/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(artworkData),
+  });
+};
+
+// Delete artwork (admin only)
+export const deleteArtwork = async (id: string) => {
+  console.log(`Deleting artwork ${id}`);
+  return await authFetch(`/artworks/${id}`, {
+    method: 'DELETE',
+  });
+};
+
+// Create a new exhibition (admin only)
+export const createExhibition = async (exhibitionData: ExhibitionData) => {
+  console.log('Creating exhibition with data:', exhibitionData);
+  return await authFetch('/exhibitions', {
+    method: 'POST',
+    body: JSON.stringify(exhibitionData),
+  });
+};
+
+// Update existing exhibition (admin only)
+export const updateExhibition = async (id: string, exhibitionData: ExhibitionData) => {
+  console.log(`Updating exhibition ${id} with data:`, exhibitionData);
+  return await authFetch(`/exhibitions/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(exhibitionData),
+  });
+};
+
+// Delete exhibition (admin only)
+export const deleteExhibition = async (id: string) => {
+  console.log(`Deleting exhibition ${id}`);
+  return await authFetch(`/exhibitions/${id}`, {
+    method: 'DELETE',
+  });
+};
+
+// Get all artworks
+export const getAllArtworks = async () => {
+  try {
+    const response = await fetch(`${API_URL}/artworks`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch artworks');
+    }
+    const data = await response.json();
+    return data.artworks || [];
   } catch (error) {
     console.error('Error fetching artworks:', error);
-    throw new Error('Failed to fetch artworks');
+    throw error;
   }
 };
 
-export const getAllArtworks = async (): Promise<ArtworkData[]> => {
-  try {
-    const response = await api.get('/artworks/all');
-    return response.data.artworks || [];
-  } catch (error) {
-    console.error('Error fetching all artworks:', error);
-    throw new Error('Failed to fetch all artworks');
-  }
-};
-
+// Get a single artwork
 export const getArtwork = async (id: string) => {
   try {
-    const response = await api.get(`/artworks/${id}`);
-    return response.data;
+    const response = await fetch(`${API_URL}/artworks/${id}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch artwork');
+    }
+    return await response.json();
   } catch (error) {
-    console.error(`Error fetching artwork ${id}:`, error);
-    throw new Error('Failed to fetch artwork');
+    console.error('Error fetching artwork:', error);
+    throw error;
   }
 };
 
-export const createArtwork = async (artworkData: ArtworkData): Promise<ArtworkData> => {
+// Get all exhibitions
+export const getAllExhibitions = async () => {
   try {
-    const response = await api.post('/artworks', artworkData);
-    return response.data;
-  } catch (error) {
-    console.error('Error creating artwork:', error);
-    throw new Error('Failed to create artwork');
-  }
-};
-
-export const updateArtwork = async (id: string, artworkData: ArtworkData): Promise<ArtworkData> => {
-  try {
-    const response = await api.put(`/artworks/${id}`, artworkData);
-    return response.data;
-  } catch (error) {
-    console.error(`Error updating artwork ${id}:`, error);
-    throw new Error('Failed to update artwork');
-  }
-};
-
-export const deleteArtwork = async (id: string): Promise<void> => {
-  try {
-    await api.delete(`/artworks/${id}`);
-  } catch (error) {
-    console.error(`Error deleting artwork ${id}:`, error);
-    throw new Error('Failed to delete artwork');
-  }
-};
-
-// Exhibition API endpoints
-export const getExhibitions = async () => {
-  try {
-    const response = await api.get('/exhibitions');
-    return response.data;
+    const response = await fetch(`${API_URL}/exhibitions`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch exhibitions');
+    }
+    const data = await response.json();
+    return data.exhibitions || [];
   } catch (error) {
     console.error('Error fetching exhibitions:', error);
-    throw new Error('Failed to fetch exhibitions');
+    throw error;
   }
 };
 
-export const getAllExhibitions = async (): Promise<ExhibitionData[]> => {
-  try {
-    const response = await api.get('/exhibitions/all');
-    return response.data.exhibitions || [];
-  } catch (error) {
-    console.error('Error fetching all exhibitions:', error);
-    throw new Error('Failed to fetch all exhibitions');
-  }
-};
-
+// Get a single exhibition
 export const getExhibition = async (id: string) => {
   try {
-    const response = await api.get(`/exhibitions/${id}`);
-    return response.data;
+    const response = await fetch(`${API_URL}/exhibitions/${id}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch exhibition');
+    }
+    return await response.json();
   } catch (error) {
-    console.error(`Error fetching exhibition ${id}:`, error);
-    throw new Error('Failed to fetch exhibition');
+    console.error('Error fetching exhibition:', error);
+    throw error;
   }
 };
 
-export const createExhibition = async (exhibitionData: ExhibitionData): Promise<ExhibitionData> => {
+// Submit a contact message
+export const submitContactMessage = async (messageData: ContactMessage) => {
   try {
-    const response = await api.post('/exhibitions', exhibitionData);
-    return response.data;
+    const response = await fetch(`${API_URL}/contact`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(messageData),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to submit contact message');
+    }
+    
+    return await response.json();
   } catch (error) {
-    console.error('Error creating exhibition:', error);
-    throw new Error('Failed to create exhibition');
+    console.error('Error submitting contact message:', error);
+    throw error;
   }
 };
 
-export const updateExhibition = async (id: string, exhibitionData: ExhibitionData): Promise<ExhibitionData> => {
+// Get all contact messages (admin only)
+export const getAllContactMessages = async () => {
+  return await authFetch('/messages');
+};
+
+// Update message status (admin only)
+export const updateMessageStatus = async (id: string, status: 'new' | 'read' | 'replied') => {
+  return await authFetch(`/messages/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  });
+};
+
+// Place an order for artwork
+export const placeArtworkOrder = async (orderData: any) => {
+  return await authFetch('/orders/artwork', {
+    method: 'POST',
+    body: JSON.stringify(orderData),
+  });
+};
+
+// Book an exhibition
+export const bookExhibition = async (bookingData: any) => {
+  return await authFetch('/orders/exhibition', {
+    method: 'POST',
+    body: JSON.stringify(bookingData),
+  });
+};
+
+// Get all tickets (admin only)
+export const getAllTickets = async () => {
+  return await authFetch('/tickets');
+};
+
+// Generate exhibition ticket
+export const generateExhibitionTicket = async (bookingId: string) => {
   try {
-    const response = await api.put(`/exhibitions/${id}`, exhibitionData);
-    return response.data;
+    return await authFetch(`/tickets/generate/${bookingId}`);
   } catch (error) {
-    console.error(`Error updating exhibition ${id}:`, error);
-    throw new Error('Failed to update exhibition');
+    console.error('Ticket generation error:', error);
+    throw error;
   }
 };
 
-export const deleteExhibition = async (id: string): Promise<void> => {
+// Get user tickets
+export const getUserTickets = async (userId: string) => {
+  return await authFetch(`/tickets/user/${userId}`);
+};
+
+// Get user orders
+export const getUserOrders = async (userId: string) => {
   try {
-    await api.delete(`/exhibitions/${id}`);
+    return await authFetch(`/orders/user/${userId}`);
   } catch (error) {
-    console.error(`Error deleting exhibition ${id}:`, error);
-    throw new Error('Failed to delete exhibition');
+    console.error('Get user orders error:', error);
+    throw error;
   }
 };
 
-// Contact form endpoint
-export const submitContact = async (formData: any) => {
+// Initiate M-Pesa payment
+export const initiateMpesaPayment = async (
+  phoneNumber: string,
+  amount: number,
+  orderType: 'artwork' | 'exhibition',
+  orderId: string,
+  userId: string,
+  accountReference: string
+) => {
   try {
-    const response = await api.post('/contact', formData);
-    return response.data;
+    const response = await fetch(`${API_URL}/mpesa/stk-push`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        phoneNumber,
+        amount,
+        orderType,
+        orderId,
+        userId,
+        accountReference
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Payment initiation failed');
+    }
+    
+    return await response.json();
   } catch (error) {
-    console.error('Contact form submission error:', error);
-    throw new Error('Failed to submit contact form');
+    console.error('M-Pesa payment error:', error);
+    throw error;
   }
 };
 
-export const submitContactMessage = async (formData: any) => {
+// Check M-Pesa transaction status
+export const checkPaymentStatus = async (checkoutRequestId: string) => {
   try {
-    const response = await api.post('/contact/message', formData);
-    return response.data;
+    const response = await fetch(`${API_URL}/mpesa/status/${checkoutRequestId}`);
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to check payment status');
+    }
+    
+    return await response.json();
   } catch (error) {
-    console.error('Contact message submission error:', error);
-    throw new Error('Failed to submit contact message');
+    console.error('Payment status check error:', error);
+    throw error;
   }
 };
-
-// Messages management
-export const getAllContactMessages = async (): Promise<{ messages: ContactMessage[] }> => {
-  try {
-    const response = await api.get('/contact/messages');
-    return response.data || { messages: [] };
-  } catch (error) {
-    console.error('Error fetching contact messages:', error);
-    throw new Error('Failed to fetch contact messages');
-  }
-};
-
-export const updateMessageStatus = async (id: string, status: 'new' | 'read' | 'replied'): Promise<ContactMessage> => {
-  try {
-    const response = await api.put(`/contact/messages/${id}/status`, { status });
-    return response.data;
-  } catch (error) {
-    console.error(`Error updating message status ${id}:`, error);
-    throw new Error('Failed to update message status');
-  }
-};
-
-// Ticket management
-export const getAllTickets = async (): Promise<{ tickets: TicketData[] }> => {
-  try {
-    const response = await api.get('/tickets');
-    return response.data || { tickets: [] };
-  } catch (error) {
-    console.error('Error fetching tickets:', error);
-    throw new Error('Failed to fetch tickets');
-  }
-};
-
-export const generateExhibitionTicket = async (exhibitionId: string, userData: any): Promise<TicketData> => {
-  try {
-    const response = await api.post(`/exhibitions/${exhibitionId}/tickets`, userData);
-    return response.data;
-  } catch (error) {
-    console.error('Error generating exhibition ticket:', error);
-    throw new Error('Failed to generate exhibition ticket');
-  }
-};
-
-export default api;

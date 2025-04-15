@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,8 @@ import { formatPrice } from '@/utils/formatters';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import ArtworkCard from '@/components/ArtworkCard';
-import { getArtwork, getAllArtworks, ArtworkData } from '@/services/api';
+import { Artwork } from '@/types';
+import { getArtwork, getAllArtworks } from '@/services/api';
 import { Ban } from 'lucide-react';
 import { getValidImageUrl, handleImageError } from '@/utils/imageUtils';
 
@@ -15,8 +17,8 @@ const ArtworkDetail = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
-  const [artwork, setArtwork] = useState<ArtworkData | null>(null);
-  const [relatedArtworks, setRelatedArtworks] = useState<ArtworkData[]>([]);
+  const [artwork, setArtwork] = useState<Artwork | null>(null);
+  const [relatedArtworks, setRelatedArtworks] = useState<Artwork[]>([]);
   const [loading, setLoading] = useState(true);
   const [imageLoaded, setImageLoaded] = useState(false);
 
@@ -32,7 +34,7 @@ const ArtworkDetail = () => {
         // Fetch all artworks to get related ones by the same artist
         const allArtworks = await getAllArtworks();
         const related = allArtworks
-          .filter((a: ArtworkData) => a.id !== id && a.artist === data.artist)
+          .filter((a: Artwork) => a.id !== id && a.artist === data.artist)
           .slice(0, 3);
         
         setRelatedArtworks(related);
@@ -86,8 +88,8 @@ const ArtworkDetail = () => {
     );
   }
 
-  const isSold = artwork?.status === 'sold';
-  const imageUrl = artwork ? getValidImageUrl(artwork.imageUrl) : '';
+  const isSold = artwork.status === 'sold';
+  const imageUrl = getValidImageUrl(artwork.imageUrl);
 
   return (
     <div className="py-12 px-4 md:px-6 bg-secondary min-h-screen">
@@ -181,7 +183,7 @@ const ArtworkDetail = () => {
         {relatedArtworks.length > 0 && (
           <div className="mt-16">
             <h2 className="text-2xl font-serif font-bold mb-8">
-              More by {artwork?.artist}
+              More by {artwork.artist}
             </h2>
             <div className="artwork-grid">
               {relatedArtworks.map((relatedArtwork) => (

@@ -51,17 +51,7 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
   const [fileName, setFileName] = useState<string>("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   
-  const defaultValues: ExhibitionFormValues = initialData ? {
-    title: initialData.title,
-    description: initialData.description,
-    location: initialData.location,
-    startDate: initialData.startDate,
-    endDate: initialData.endDate,
-    ticketPrice: initialData.ticketPrice,
-    totalSlots: initialData.totalSlots,
-    availableSlots: initialData.availableSlots,
-    status: initialData.status as "upcoming" | "ongoing" | "past",
-  } : {
+  const defaultValues = initialData || {
     title: "",
     description: "",
     location: "",
