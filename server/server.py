@@ -18,7 +18,8 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-from database import get_db, close_db, init_db
+# Update imports to use correct database functions
+from database import get_db_connection, save_contact_message, get_all_contact_messages
 from auth import (
     generate_token, decode_token, login_required, 
     admin_required, get_user_id_from_token
@@ -42,8 +43,8 @@ app.config['DATABASE'] = os.path.join(os.path.dirname(__file__), 'gallery.db')
 # Enable CORS
 CORS(app)
 
-# Register database connection and close functions
-app.teardown_appcontext(close_db)
+# Remove the database connection teardown since we're using different db functions
+# app.teardown_appcontext(close_db)
 
 # Ensure upload directory exists
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'uploads')
@@ -270,9 +271,11 @@ def update_exhibition_route(exhibition_id):
 
 # Main entry point
 if __name__ == '__main__':
-    # Initialize the database if it doesn't exist
+    # Initialize the database table structure (moved init_db logic)
     try:
-        init_db()
+        # Use MySQL-specific initialization
+        from db_setup import initialize_database
+        initialize_database()
         print("Database initialized successfully.")
     except Exception as e:
         print(f"Error initializing database: {e}")
