@@ -1,535 +1,114 @@
-// API service to connect to the Python backend
 
-// Base URL for the API
-const API_URL = 'http://localhost:8000';
+import axios from 'axios';
 
-// Interface for auth responses
-interface AuthResponse {
-  token?: string;
-  user_id?: number;
-  admin_id?: number;
-  name?: string;
-  error?: string;
-}
+// Base URL for API requests
+// For deployed application use relative URLs
+const API_BASE_URL = '/api';
 
-// Interface for login data
-interface LoginData {
-  email: string;
-  password: string;
-}
-
-// Interface for registration data
-interface RegisterData {
-  name: string;
-  email: string;
-  password: string;
-  phone: string;
-}
-
-// Interface for artwork data
-export interface ArtworkData {
-  id?: string;
-  title: string;
-  artist: string;
-  description: string;
-  price: number;
-  imageUrl: string;
-  dimensions?: string;
-  medium?: string;
-  year?: number;
-  status: 'available' | 'sold';
-}
-
-// Interface for exhibition data
-export interface ExhibitionData {
-  id?: string;
-  title: string;
-  description: string;
-  location: string;
-  startDate: string;
-  endDate: string;
-  ticketPrice: number;
-  imageUrl: string;
-  totalSlots: number;
-  availableSlots: number;
-  status: 'upcoming' | 'ongoing' | 'past';
-}
-
-// Interface for contact message
-interface ContactMessage {
-  name: string;
-  email: string;
-  phone?: string;
-  message: string;
-  source?: string; // Added source field
-}
-
-// Helper function to store auth data
-const storeAuthData = (data: AuthResponse, isAdmin: boolean) => {
-  if (data.token) {
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('userName', data.name || '');
-    localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false');
-    
-    // Store user or admin ID
-    if (data.user_id) {
-      localStorage.setItem('userId', data.user_id.toString());
-    } else if (data.admin_id) {
-      localStorage.setItem('adminId', data.admin_id.toString());
-    }
-    
-    return true;
-  }
-  
-  return false;
-};
-
-// Register a new user
-export const registerUser = async (userData: RegisterData): Promise<AuthResponse> => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-    const response = await fetch(`${API_URL}/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    const data = await response.json();
-    
-    if (response.ok) {
-      storeAuthData(data, false);
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('Registration error:', error);
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      return { error: 'Connection timeout. Server may be down or unreachable.' };
-    }
-    return { error: 'Network error. Please try again.' };
-  }
-};
-
-// Login a user
-export const loginUser = async (credentials: LoginData): Promise<AuthResponse> => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-    const response = await fetch(`${API_URL}/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(credentials),
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    const data = await response.json();
-    
-    if (response.ok) {
-      storeAuthData(data, false);
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('Login error:', error);
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      return { error: 'Connection timeout. Server may be down or unreachable.' };
-    }
-    return { error: 'Network error. Please try again.' };
-  }
-};
-
-// Login as admin
-export const loginAdmin = async (credentials: LoginData): Promise<AuthResponse> => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-    const response = await fetch(`${API_URL}/admin-login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(credentials),
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    const data = await response.json();
-    
-    if (response.ok) {
-      console.log("Admin login successful, storing data:", {
-        ...data,
-        token: data.token ? `${data.token.substring(0, 20)}...` : null
-      });
-      storeAuthData(data, true);
-    } else {
-      console.error("Admin login failed:", data.error);
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('Admin login error:', error);
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      return { error: 'Connection timeout. Server may be down or unreachable.' };
-    }
-    return { error: 'Network error. Please try again.' };
-  }
-};
-
-// Get the auth token
-export const getToken = (): string | null => {
-  return localStorage.getItem('token');
-};
-
-// Check if user is authenticated
-export const isAuthenticated = (): boolean => {
-  return !!getToken();
-};
-
-// Check if user is an admin
-export const isAdmin = (): boolean => {
-  return localStorage.getItem('isAdmin') === 'true';
-};
-
-// Logout user
-export const logout = (): void => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('userName');
-  localStorage.removeItem('isAdmin');
-  localStorage.removeItem('userId');
-  localStorage.removeItem('adminId');
-};
-
-// API request with authentication
-export const authFetch = async (url: string, options: RequestInit = {}): Promise<any> => {
-  const token = getToken();
-  
-  if (!token) {
-    console.error('No authentication token found');
-    throw new Error('No authentication token found');
-  }
-  
-  // Ensure correct Authorization header format
-  const headers = {
-    'Authorization': `Bearer ${token}`,
+// Create an axios instance with default config
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
     'Content-Type': 'application/json',
-    ...(options.headers || {}),
-  };
-  
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-    
-    console.log(`Making authenticated request to: ${API_URL}${url}`);
-    console.log('Using token:', token.substring(0, 20) + '...');
-    console.log('Request options:', { 
-      ...options, 
-      headers: { ...headers, Authorization: 'Bearer [REDACTED]' } 
-    });
-    
-    const response = await fetch(`${API_URL}${url}`, {
-      ...options,
-      headers,
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    
-    let data;
-    // Parse response based on content type
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      data = await response.json();
-    } else {
-      const text = await response.text();
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        data = { text };
-      }
+  },
+});
+
+// Request interceptor for adding auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
-    
-    console.log('Response status:', response.status);
-    console.log('Response data:', data);
-    
-    // Handle different status codes
-    if (response.status === 401) {
-      // Token expired or invalid
-      logout();
-      throw new Error('Session expired. Please login again.');
-    }
-    
-    if (response.status === 403) {
-      console.error('403 Forbidden error - Access denied', data);
-      throw new Error(data.error || 'Access denied. Please check your permissions.');
-    }
-    
-    if (!response.ok) {
-      throw new Error(data.error || `Request failed with status ${response.status}`);
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('API request error:', error);
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('Connection timeout. Server may be down or unreachable.');
-    }
-    throw error;
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-};
+);
 
-// Create a new artwork (admin only)
-export const createArtwork = async (artworkData: ArtworkData) => {
-  console.log('Creating artwork with data:', artworkData);
-  return await authFetch('/artworks', {
-    method: 'POST',
-    body: JSON.stringify(artworkData),
-  });
-};
-
-// Update existing artwork (admin only)
-export const updateArtwork = async (id: string, artworkData: ArtworkData) => {
-  console.log(`Updating artwork ${id} with data:`, artworkData);
-  return await authFetch(`/artworks/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(artworkData),
-  });
-};
-
-// Delete artwork (admin only)
-export const deleteArtwork = async (id: string) => {
-  console.log(`Deleting artwork ${id}`);
-  return await authFetch(`/artworks/${id}`, {
-    method: 'DELETE',
-  });
-};
-
-// Create a new exhibition (admin only)
-export const createExhibition = async (exhibitionData: ExhibitionData) => {
-  console.log('Creating exhibition with data:', exhibitionData);
-  return await authFetch('/exhibitions', {
-    method: 'POST',
-    body: JSON.stringify(exhibitionData),
-  });
-};
-
-// Update existing exhibition (admin only)
-export const updateExhibition = async (id: string, exhibitionData: ExhibitionData) => {
-  console.log(`Updating exhibition ${id} with data:`, exhibitionData);
-  return await authFetch(`/exhibitions/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(exhibitionData),
-  });
-};
-
-// Delete exhibition (admin only)
-export const deleteExhibition = async (id: string) => {
-  console.log(`Deleting exhibition ${id}`);
-  return await authFetch(`/exhibitions/${id}`, {
-    method: 'DELETE',
-  });
-};
-
-// Get all artworks
-export const getAllArtworks = async () => {
+// Artwork API endpoints
+export const getArtworks = async () => {
   try {
-    const response = await fetch(`${API_URL}/artworks`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch artworks');
-    }
-    const data = await response.json();
-    return data.artworks || [];
+    const response = await api.get('/artworks');
+    return response.data;
   } catch (error) {
     console.error('Error fetching artworks:', error);
-    throw error;
+    throw new Error('Failed to fetch artworks');
   }
 };
 
-// Get a single artwork
 export const getArtwork = async (id: string) => {
   try {
-    const response = await fetch(`${API_URL}/artworks/${id}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch artwork');
-    }
-    return await response.json();
+    const response = await api.get(`/artworks/${id}`);
+    return response.data;
   } catch (error) {
-    console.error('Error fetching artwork:', error);
-    throw error;
+    console.error(`Error fetching artwork ${id}:`, error);
+    throw new Error('Failed to fetch artwork');
   }
 };
 
-// Get all exhibitions
-export const getAllExhibitions = async () => {
+// Exhibition API endpoints
+export const getExhibitions = async () => {
   try {
-    const response = await fetch(`${API_URL}/exhibitions`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch exhibitions');
-    }
-    const data = await response.json();
-    return data.exhibitions || [];
+    const response = await api.get('/exhibitions');
+    return response.data;
   } catch (error) {
     console.error('Error fetching exhibitions:', error);
-    throw error;
+    throw new Error('Failed to fetch exhibitions');
   }
 };
 
-// Get a single exhibition
 export const getExhibition = async (id: string) => {
   try {
-    const response = await fetch(`${API_URL}/exhibitions/${id}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch exhibition');
-    }
-    return await response.json();
+    const response = await api.get(`/exhibitions/${id}`);
+    return response.data;
   } catch (error) {
-    console.error('Error fetching exhibition:', error);
-    throw error;
+    console.error(`Error fetching exhibition ${id}:`, error);
+    throw new Error('Failed to fetch exhibition');
   }
 };
 
-// Submit a contact message
-export const submitContactMessage = async (messageData: ContactMessage) => {
+// Authentication endpoints
+export const login = async (email: string, password: string) => {
   try {
-    const response = await fetch(`${API_URL}/contact`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(messageData),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to submit contact message');
-    }
-    
-    return await response.json();
+    const response = await axios.post('/login', { email, password });
+    return response.data;
   } catch (error) {
-    console.error('Error submitting contact message:', error);
-    throw error;
+    console.error('Login error:', error);
+    throw new Error('Login failed');
   }
 };
 
-// Get all contact messages (admin only)
-export const getAllContactMessages = async () => {
-  return await authFetch('/messages');
-};
-
-// Update message status (admin only)
-export const updateMessageStatus = async (id: string, status: 'new' | 'read' | 'replied') => {
-  return await authFetch(`/messages/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify({ status }),
-  });
-};
-
-// Place an order for artwork
-export const placeArtworkOrder = async (orderData: any) => {
-  return await authFetch('/orders/artwork', {
-    method: 'POST',
-    body: JSON.stringify(orderData),
-  });
-};
-
-// Book an exhibition
-export const bookExhibition = async (bookingData: any) => {
-  return await authFetch('/orders/exhibition', {
-    method: 'POST',
-    body: JSON.stringify(bookingData),
-  });
-};
-
-// Get all tickets (admin only)
-export const getAllTickets = async () => {
-  return await authFetch('/tickets');
-};
-
-// Generate exhibition ticket
-export const generateExhibitionTicket = async (bookingId: string) => {
+export const adminLogin = async (email: string, password: string) => {
   try {
-    return await authFetch(`/tickets/generate/${bookingId}`);
+    const response = await axios.post('/admin-login', { email, password });
+    return response.data;
   } catch (error) {
-    console.error('Ticket generation error:', error);
-    throw error;
+    console.error('Admin login error:', error);
+    throw new Error('Admin login failed');
   }
 };
 
-// Get user tickets
-export const getUserTickets = async (userId: string) => {
-  return await authFetch(`/tickets/user/${userId}`);
-};
-
-// Get user orders
-export const getUserOrders = async (userId: string) => {
+export const register = async (userData: any) => {
   try {
-    return await authFetch(`/orders/user/${userId}`);
+    const response = await axios.post('/register', userData);
+    return response.data;
   } catch (error) {
-    console.error('Get user orders error:', error);
-    throw error;
+    console.error('Registration error:', error);
+    throw new Error('Registration failed');
   }
 };
 
-// Initiate M-Pesa payment
-export const initiateMpesaPayment = async (
-  phoneNumber: string,
-  amount: number,
-  orderType: 'artwork' | 'exhibition',
-  orderId: string,
-  userId: string,
-  accountReference: string
-) => {
+// Contact form endpoint
+export const submitContact = async (formData: any) => {
   try {
-    const response = await fetch(`${API_URL}/mpesa/stk-push`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        phoneNumber,
-        amount,
-        orderType,
-        orderId,
-        userId,
-        accountReference
-      }),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Payment initiation failed');
-    }
-    
-    return await response.json();
+    const response = await axios.post('/contact', formData);
+    return response.data;
   } catch (error) {
-    console.error('M-Pesa payment error:', error);
-    throw error;
+    console.error('Contact form submission error:', error);
+    throw new Error('Failed to submit contact form');
   }
 };
 
-// Check M-Pesa transaction status
-export const checkPaymentStatus = async (checkoutRequestId: string) => {
-  try {
-    const response = await fetch(`${API_URL}/mpesa/status/${checkoutRequestId}`);
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to check payment status');
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Payment status check error:', error);
-    throw error;
-  }
-};
+export default api;
