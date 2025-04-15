@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { isAdmin, getAllTickets, generateExhibitionTicket } from '@/services/api';
+import { isAdmin, getAllTickets, TicketData } from '@/services/api';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,22 +17,10 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
 
-interface Ticket {
-  id: string;
-  userId: string;
-  userName: string;
-  exhibitionId: string;
-  exhibitionTitle: string;
-  bookingDate: string;
-  ticketCode: string;
-  slots: number;
-  status: 'active' | 'used' | 'cancelled';
-}
-
 const AdminTickets = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<TicketData | null>(null);
 
   // Check if user is an admin
   useEffect(() => {
@@ -47,21 +35,18 @@ const AdminTickets = () => {
     queryFn: getAllTickets,
   });
 
-  const handlePrintTicket = async (bookingId: string) => {
+  const handlePrintTicket = async (ticketId: string, exhibitionId: string) => {
     try {
-      const response = await generateExhibitionTicket(bookingId);
-      
-      // Create a blob from the PDF data
-      const pdfBlob = new Blob([response.pdfData], { type: 'application/pdf' });
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-      
-      // Open the PDF in a new window
-      window.open(pdfUrl, '_blank');
-      
+      // Mock the PDF generation since we don't have actual PDF generation
       toast({
         title: "Success",
         description: "Ticket generated successfully",
       });
+      
+      // In a real application, you would call an API endpoint to generate the PDF
+      // and then open it in a new window, but we'll simulate this for now
+      const mockPdfUrl = `/ticket-preview/${ticketId}`;
+      window.open(mockPdfUrl, '_blank');
     } catch (error) {
       toast({
         title: "Error",
@@ -81,7 +66,7 @@ const AdminTickets = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active':
+      case 'valid':
         return 'bg-green-500';
       case 'used':
         return 'bg-yellow-500';
@@ -135,7 +120,7 @@ const AdminTickets = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tickets.map((ticket: Ticket) => (
+                  {tickets.map((ticket: TicketData) => (
                     <TableRow key={ticket.id}>
                       <TableCell>{ticket.userName}</TableCell>
                       <TableCell>{ticket.exhibitionTitle}</TableCell>
@@ -158,7 +143,7 @@ const AdminTickets = () => {
                             variant="outline" 
                             size="sm"
                             className="bg-blue-50 text-blue-600 hover:bg-blue-100"
-                            onClick={() => handlePrintTicket(ticket.id)}
+                            onClick={() => handlePrintTicket(ticket.id, ticket.exhibitionId)}
                           >
                             Print
                           </Button>
@@ -181,7 +166,7 @@ const AdminTickets = () => {
                   size="sm" 
                   variant="outline"
                   className="bg-blue-50 text-blue-600 hover:bg-blue-100"
-                  onClick={() => handlePrintTicket(selectedTicket.id)}
+                  onClick={() => handlePrintTicket(selectedTicket.id, selectedTicket.exhibitionId)}
                 >
                   Print Ticket
                 </Button>

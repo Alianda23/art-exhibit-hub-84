@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowRight, MapPin, Calendar } from 'lucide-react';
@@ -6,13 +5,12 @@ import { Button } from '@/components/ui/button';
 import { formatPrice, formatDateRange } from '@/utils/formatters';
 import ArtworkCard from '@/components/ArtworkCard';
 import ExhibitionCard from '@/components/ExhibitionCard';
-import { getAllArtworks, getAllExhibitions } from '@/services/api';
-import { Artwork, Exhibition } from '@/types';
+import { getAllArtworks, getAllExhibitions, ArtworkData, ExhibitionData } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
 
 const Home = () => {
-  const [featuredArtworks, setFeaturedArtworks] = useState<Artwork[]>([]);
-  const [featuredExhibitions, setFeaturedExhibitions] = useState<Exhibition[]>([]);
+  const [featuredArtworks, setFeaturedArtworks] = useState<ArtworkData[]>([]);
+  const [featuredExhibitions, setFeaturedExhibitions] = useState<ExhibitionData[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   

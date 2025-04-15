@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -47,7 +46,6 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
 }) => {
   const { toast } = useToast();
   
-  // Use state to track the image URL and preview image
   const [imageUrl, setImageUrl] = useState<string>(initialData?.imageUrl || "");
   const [previewImage, setPreviewImage] = useState<string | null>(
     initialData?.imageUrl ? initialData.imageUrl : null
@@ -56,7 +54,16 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isImageLoaded, setIsImageLoaded] = useState<boolean>(!!initialData?.imageUrl);
   
-  const defaultValues = initialData || {
+  const defaultValues: ArtworkFormValues = initialData ? {
+    title: initialData.title,
+    artist: initialData.artist,
+    description: initialData.description,
+    price: initialData.price,
+    dimensions: initialData.dimensions || "",
+    medium: initialData.medium || "",
+    year: initialData.year || new Date().getFullYear(),
+    status: initialData.status as "available" | "sold",
+  } : {
     title: "",
     artist: "",
     description: "",
@@ -72,7 +79,6 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
     defaultValues,
   });
 
-  // Effect to check if the initial image URL is valid
   useEffect(() => {
     if (initialData?.imageUrl) {
       const img = new Image();
@@ -97,7 +103,6 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
     const file = files[0];
     setImageFile(file);
     
-    // Validate file size
     if (file.size > MAX_FILE_SIZE) {
       toast({
         variant: "destructive",
@@ -107,7 +112,6 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
       return;
     }
     
-    // Validate file type
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
       toast({
         variant: "destructive",
@@ -117,7 +121,6 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
       return;
     }
     
-    // Generate current date-time string for unique filename
     const now = new Date();
     const dateTime = now.getFullYear() +
                     String(now.getMonth() + 1).padStart(2, '0') +
@@ -126,16 +129,14 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
                     String(now.getMinutes()).padStart(2, '0') +
                     String(now.getSeconds()).padStart(2, '0');
     
-    // Create a filename with datetime prefix
     const generatedFileName = `${dateTime}_${file.name.replace(/\s+/g, '-')}`;
     setFileName(generatedFileName);
     
-    // Create a FileReader to generate a preview
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
       setPreviewImage(result);
-      setImageUrl(result); // Store the base64 image temporarily
+      setImageUrl(result);
       setIsImageLoaded(true);
     };
     reader.readAsDataURL(file);
@@ -154,10 +155,8 @@ const ArtworkForm: React.FC<ArtworkFormProps> = ({
         return;
       }
       
-      // Use the stored image URL (base64 data or existing URL)
       let submissionImageUrl = imageUrl;
       
-      // If we have an initial image URL that's already a server path and no new image was uploaded
       if (initialData?.imageUrl && !imageFile && 
           (initialData.imageUrl.startsWith('/static/') || 
            initialData.imageUrl.startsWith('http'))) {

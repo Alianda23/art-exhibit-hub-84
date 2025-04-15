@@ -24,7 +24,7 @@ export interface ArtworkData {
   medium: string;
   dimensions: string;
   year: number;
-  status: string;
+  status: 'available' | 'sold';  // Changed from string to union type
 }
 
 export interface ExhibitionData {
@@ -38,7 +38,7 @@ export interface ExhibitionData {
   imageUrl: string;
   totalSlots: number;
   availableSlots: number;
-  status: string;
+  status: 'upcoming' | 'ongoing' | 'past';  // Changed from string to union type
 }
 
 export interface ContactMessage {
@@ -63,6 +63,9 @@ export interface TicketData {
   ticketCode: string;
   status: 'valid' | 'used' | 'cancelled';
   price: number;
+  // Add missing properties from the Ticket interface in AdminTickets.tsx
+  bookingDate: string;
+  slots: number;
 }
 
 // Request interceptor for adding auth token
