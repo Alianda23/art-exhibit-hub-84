@@ -58,8 +58,8 @@ const Login = () => {
       console.error("Login error:", error);
       setError("Connection error. Please try again later.");
       toast({
-        title: "Connection Error",
-        description: "Could not reach the server. Please check if the server is running.",
+        title: "Error",
+        description: "An error occurred during login. Please check if the server is running.",
         variant: "destructive",
       });
     } finally {

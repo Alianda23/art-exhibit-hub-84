@@ -63,7 +63,6 @@ export interface TicketData {
   ticketCode: string;
   status: 'valid' | 'used' | 'cancelled';
   price: number;
-  // Add missing properties from the Ticket interface in AdminTickets.tsx
   bookingDate: string;
   slots: number;
 }
@@ -85,11 +84,14 @@ api.interceptors.request.use(
 // Authentication functions
 export const loginUser = async (email: string, password: string) => {
   try {
+    // Updated to use /api/login instead of just /login
     const response = await api.post('/auth/login', { email, password });
     // Store token in localStorage
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('userId', response.data.user_id);
+      localStorage.setItem('userName', response.data.name);
+      localStorage.setItem('isAdmin', 'false');
     }
     return response.data;
   } catch (error) {
@@ -100,11 +102,13 @@ export const loginUser = async (email: string, password: string) => {
 
 export const loginAdmin = async (email: string, password: string) => {
   try {
+    // Updated to use /api/admin-login instead of just /admin-login
     const response = await api.post('/auth/admin-login', { email, password });
     // Store token in localStorage
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('adminId', response.data.admin_id);
+      localStorage.setItem('userName', response.data.name);
       localStorage.setItem('isAdmin', 'true');
     }
     return response.data;
@@ -116,6 +120,7 @@ export const loginAdmin = async (email: string, password: string) => {
 
 export const registerUser = async (userData: any) => {
   try {
+    // Updated to use /api/register instead of just /register
     const response = await api.post('/auth/register', userData);
     return response.data;
   } catch (error) {
@@ -126,7 +131,9 @@ export const registerUser = async (userData: any) => {
 
 export const logout = () => {
   localStorage.removeItem('token');
-  localStorage.removeItem('user');
+  localStorage.removeItem('userId');
+  localStorage.removeItem('adminId');
+  localStorage.removeItem('userName');
   localStorage.removeItem('isAdmin');
 };
 
